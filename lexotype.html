@@ -1,0 +1,1380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lexotype — Type to Learn</title>
+<link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@300;400;500&family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0f0f0f;
+    --surface: #161616;
+    --surface2: #1e1e1e;
+    --border: #2a2a2a;
+    --text: #d4d4d4;
+    --muted: #555;
+    --accent: #e2b96f;
+    --accent2: #7ec8a4;
+    --correct: #7ec8a4;
+    --incorrect: #e07070;
+    --cursor: #e2b96f;
+    --word-pending: #3a3a3a;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow-x: hidden;
+  }
+
+  /* Subtle noise texture */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.4;
+  }
+
+  header {
+    position: relative;
+    z-index: 10;
+    padding: 28px 48px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .logo {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.6rem;
+    color: var(--accent);
+    letter-spacing: -0.02em;
+  }
+
+  .logo span {
+    color: var(--text);
+    font-style: italic;
+  }
+
+  .header-stats {
+    display: flex;
+    gap: 32px;
+    font-size: 0.78rem;
+    color: var(--muted);
+    font-family: 'Roboto Mono', monospace;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+
+  .header-stat strong {
+    color: var(--accent);
+    font-weight: 500;
+  }
+
+  .main-layout {
+    position: relative;
+    z-index: 1;
+    flex: 1;
+    display: grid;
+    grid-template-columns: 1fr 320px;
+    gap: 0;
+    max-width: 1300px;
+    width: 100%;
+    margin: 0 auto;
+    padding: 40px 48px;
+    align-items: start;
+  }
+
+  /* LEFT: typing area */
+  .typing-section {
+    padding-right: 48px;
+    border-right: 1px solid var(--border);
+  }
+
+  .test-config {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 32px;
+    flex-wrap: wrap;
+  }
+
+  .config-btn {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    font-family: 'Roboto Mono', monospace;
+    font-size: 0.72rem;
+    padding: 6px 14px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-transform: lowercase;
+    letter-spacing: 0.04em;
+  }
+
+  .config-btn:hover, .config-btn.active {
+    color: var(--accent);
+    border-color: var(--accent);
+    background: rgba(226,185,111,0.06);
+  }
+
+
+
+
+  /* Word display */
+  #words-container {
+    position: relative;
+    font-family: 'Roboto Mono', monospace;
+    font-size: 1.35rem;
+    line-height: 2.4rem;
+    height: 7.2rem; /* 3 lines */
+    overflow: hidden;
+    margin-bottom: 28px;
+    cursor: text;
+  }
+
+  #words-inner {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    transition: top 0.15s ease;
+  }
+
+  .word {
+    display: inline-flex;
+    margin-right: 14px;
+    margin-bottom: 0;
+    position: relative;
+  }
+
+  .char {
+    color: var(--word-pending);
+    transition: color 0.05s;
+    position: relative;
+  }
+
+  .char.correct { color: var(--correct); }
+  .char.incorrect { color: var(--incorrect); text-decoration: underline; text-decoration-color: var(--incorrect); }
+  .char.current {
+    color: var(--text);
+  }
+  .char.current::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 4px;
+    bottom: 4px;
+    width: 2px;
+    background: var(--cursor);
+    animation: blink 0.9s ease infinite;
+    border-radius: 1px;
+  }
+
+  @keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0; }
+  }
+
+  .extra-char {
+    color: var(--incorrect);
+    opacity: 0.7;
+  }
+
+  #typing-input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+    width: 0;
+    height: 0;
+  }
+
+  .caret-hint {
+    font-size: 0.72rem;
+    color: var(--muted);
+    font-family: 'Roboto Mono', monospace;
+    margin-bottom: 20px;
+    letter-spacing: 0.04em;
+  }
+
+  /* Result overlay */
+  #result-screen {
+    display: none;
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 24px 0;
+    animation: fadeIn 0.4s ease;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .result-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.1rem;
+    color: var(--muted);
+    margin-bottom: 20px;
+    letter-spacing: 0.02em;
+  }
+
+  .result-grid {
+    display: grid;
+    grid-template-columns: repeat(4, auto);
+    gap: 8px 40px;
+    margin-bottom: 28px;
+  }
+
+  .result-item { }
+  .result-item .label {
+    font-size: 0.65rem;
+    font-family: 'Roboto Mono', monospace;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+    margin-bottom: 4px;
+  }
+  .result-item .value {
+    font-family: 'Roboto Mono', monospace;
+    font-size: 2.4rem;
+    font-weight: 300;
+    color: var(--accent);
+    line-height: 1;
+  }
+  .result-item .value.green { color: var(--correct); }
+
+  .retry-btn {
+    background: transparent;
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    font-family: 'Roboto Mono', monospace;
+    font-size: 0.8rem;
+    padding: 10px 28px;
+    border-radius: 4px;
+    cursor: pointer;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    transition: all 0.2s;
+  }
+
+  .retry-btn:hover {
+    background: rgba(226,185,111,0.1);
+  }
+
+  /* RIGHT: definition panel */
+  .definition-panel {
+    padding-left: 40px;
+    position: sticky;
+    top: 40px;
+  }
+
+  .panel-label {
+    font-size: 0.65rem;
+    font-family: 'Roboto Mono', monospace;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--muted);
+    margin-bottom: 20px;
+  }
+
+  .def-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 22px;
+    min-height: 180px;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .def-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 3px;
+    height: 100%;
+    background: var(--accent);
+    border-radius: 8px 0 0 8px;
+  }
+
+  .def-word {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.5rem;
+    color: var(--accent);
+    margin-bottom: 4px;
+    letter-spacing: -0.01em;
+  }
+
+  .def-phonetic {
+    font-family: 'Roboto Mono', monospace;
+    font-size: 0.72rem;
+    color: var(--muted);
+    margin-bottom: 12px;
+  }
+
+  .def-pos {
+    display: inline-block;
+    font-size: 0.65rem;
+    font-style: italic;
+    color: var(--accent2);
+    font-family: 'DM Sans', sans-serif;
+    margin-bottom: 10px;
+    background: rgba(126,200,164,0.1);
+    padding: 2px 8px;
+    border-radius: 3px;
+  }
+
+  .def-meaning {
+    font-size: 0.88rem;
+    color: var(--text);
+    line-height: 1.65;
+    font-family: 'DM Sans', sans-serif;
+    margin-bottom: 12px;
+  }
+
+  .def-example {
+    font-size: 0.78rem;
+    font-style: italic;
+    color: var(--muted);
+    line-height: 1.6;
+    font-family: 'Playfair Display', serif;
+    border-top: 1px solid var(--border);
+    padding-top: 10px;
+    margin-top: 10px;
+  }
+
+  .def-example::before {
+    content: '"';
+    color: var(--accent);
+    font-size: 1.2rem;
+    line-height: 0;
+    vertical-align: -4px;
+    margin-right: 3px;
+  }
+
+  .def-placeholder {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .def-placeholder .line {
+    height: 10px;
+    background: var(--border);
+    border-radius: 4px;
+    animation: shimmer 1.8s infinite;
+  }
+
+  .def-placeholder .line:nth-child(1) { width: 55%; animation-delay: 0s; }
+  .def-placeholder .line:nth-child(2) { width: 30%; animation-delay: 0.1s; }
+  .def-placeholder .line:nth-child(3) { width: 90%; animation-delay: 0.2s; margin-top: 8px; }
+  .def-placeholder .line:nth-child(4) { width: 75%; animation-delay: 0.3s; }
+  .def-placeholder .line:nth-child(5) { width: 80%; animation-delay: 0.4s; }
+
+  @keyframes shimmer {
+    0%, 100% { opacity: 0.4; }
+    50% { opacity: 0.15; }
+  }
+
+  /* Word queue below */
+  .upcoming-label {
+    font-size: 0.65rem;
+    font-family: 'Roboto Mono', monospace;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--muted);
+    margin: 22px 0 12px;
+  }
+
+  .word-queue {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .queue-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 7px 10px;
+    border-radius: 5px;
+    background: var(--surface);
+    border: 1px solid transparent;
+    transition: all 0.2s;
+    cursor: default;
+  }
+
+  .queue-item.active-q {
+    border-color: var(--border);
+    background: var(--surface2);
+  }
+
+  .queue-word {
+    font-family: 'Roboto Mono', monospace;
+    font-size: 0.78rem;
+    color: var(--accent);
+    min-width: 110px;
+  }
+
+  .queue-pos {
+    font-size: 0.65rem;
+    font-style: italic;
+    color: var(--accent2);
+    min-width: 50px;
+  }
+
+  .queue-short {
+    font-size: 0.72rem;
+    color: var(--muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 120px;
+  }
+
+  footer {
+    position: relative;
+    z-index: 1;
+    text-align: center;
+    padding: 20px;
+    color: var(--muted);
+    font-size: 0.7rem;
+    font-family: 'Roboto Mono', monospace;
+    border-top: 1px solid var(--border);
+    letter-spacing: 0.06em;
+  }
+
+  /* Reset button */
+  .reset-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-top: 8px;
+  }
+
+  .icon-btn {
+    background: none;
+    border: none;
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 1rem;
+    padding: 6px;
+    border-radius: 4px;
+    transition: color 0.15s;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-family: 'Roboto Mono', monospace;
+    font-size: 0.72rem;
+    letter-spacing: 0.04em;
+  }
+
+  .icon-btn:hover { color: var(--accent); }
+
+  .word-count-badge {
+    font-family: 'Roboto Mono', monospace;
+    font-size: 0.7rem;
+    color: var(--muted);
+  }
+
+  /* ── BOTTOM SECTION ── */
+  .bottom-section {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0;
+    max-width: 1300px;
+    width: 100%;
+    margin: 0 auto;
+    padding: 0 48px 48px;
+  }
+
+  .bottom-card {
+    padding: 32px 40px 32px 0;
+    border-top: 1px solid var(--border);
+  }
+
+  .bottom-card + .bottom-card {
+    padding: 32px 0 32px 40px;
+    border-left: 1px solid var(--border);
+  }
+
+  .bottom-card-label {
+    font-size: 0.65rem;
+    font-family: 'Roboto Mono', monospace;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--muted);
+    margin-bottom: 16px;
+  }
+
+  /* Todo */
+  .todo-input-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+
+  .todo-input-row input {
+    flex: 1;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: 'Roboto Mono', monospace;
+    font-size: 0.8rem;
+    padding: 8px 12px;
+    border-radius: 4px;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+
+  .todo-input-row input:focus { border-color: var(--accent); }
+  .todo-input-row input::placeholder { color: var(--muted); }
+
+  .todo-input-row button {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--accent);
+    font-size: 1.1rem;
+    width: 34px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.15s;
+    line-height: 1;
+  }
+
+  .todo-input-row button:hover { border-color: var(--accent); background: rgba(226,185,111,0.08); }
+
+  #todo-list {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-height: 200px;
+    overflow-y: auto;
+  }
+
+  #todo-list::-webkit-scrollbar { width: 3px; }
+  #todo-list::-webkit-scrollbar-track { background: transparent; }
+  #todo-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  #todo-list li {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 7px 10px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    transition: all 0.15s;
+    group: true;
+  }
+
+  #todo-list li.done .todo-text {
+    text-decoration: line-through;
+    color: var(--muted);
+  }
+
+  .todo-check {
+    width: 15px;
+    height: 15px;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    cursor: pointer;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.6rem;
+    color: var(--correct);
+    transition: all 0.15s;
+  }
+
+  .todo-check:hover { border-color: var(--accent); }
+  li.done .todo-check { background: rgba(126,200,164,0.15); border-color: var(--correct); }
+
+  .todo-text {
+    flex: 1;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.82rem;
+    color: var(--text);
+  }
+
+  .todo-del {
+    background: none;
+    border: none;
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 0.75rem;
+    padding: 2px 5px;
+    border-radius: 3px;
+    opacity: 0;
+    transition: all 0.15s;
+  }
+
+  #todo-list li:hover .todo-del { opacity: 1; }
+  .todo-del:hover { color: var(--incorrect); }
+
+  .todo-footer {
+    margin-top: 10px;
+    font-size: 0.68rem;
+    font-family: 'Roboto Mono', monospace;
+    color: var(--muted);
+    letter-spacing: 0.04em;
+  }
+
+  /* Countdown */
+  .countdown-card { }
+
+  .exam-setup {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .exam-setup input {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: 'Roboto Mono', monospace;
+    font-size: 0.8rem;
+    padding: 8px 12px;
+    border-radius: 4px;
+    outline: none;
+    transition: border-color 0.15s;
+    color-scheme: dark;
+  }
+
+  .exam-setup input:focus { border-color: var(--accent); }
+  .exam-setup input::placeholder { color: var(--muted); }
+
+  .exam-setup button {
+    background: transparent;
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    font-family: 'Roboto Mono', monospace;
+    font-size: 0.75rem;
+    padding: 8px 20px;
+    border-radius: 4px;
+    cursor: pointer;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    transition: all 0.2s;
+    align-self: flex-start;
+  }
+
+  .exam-setup button:hover { background: rgba(226,185,111,0.08); }
+
+  .exam-display { text-align: left; }
+
+  .exam-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.1rem;
+    color: var(--accent);
+    margin-bottom: 20px;
+    font-style: italic;
+  }
+
+  .countdown-grid {
+    display: flex;
+    align-items: flex-end;
+    gap: 6px;
+    margin-bottom: 14px;
+  }
+
+  .cd-unit {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .cd-val {
+    font-family: 'Roboto Mono', monospace;
+    font-size: 2.4rem;
+    font-weight: 300;
+    color: var(--text);
+    line-height: 1;
+    min-width: 56px;
+    text-align: center;
+  }
+
+  .cd-lbl {
+    font-family: 'Roboto Mono', monospace;
+    font-size: 0.6rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+    margin-top: 4px;
+  }
+
+  .cd-sep {
+    font-family: 'Roboto Mono', monospace;
+    font-size: 1.8rem;
+    color: var(--border);
+    margin-bottom: 14px;
+  }
+
+  .exam-date-label {
+    font-size: 0.72rem;
+    font-family: 'Roboto Mono', monospace;
+    color: var(--muted);
+    margin-bottom: 16px;
+    letter-spacing: 0.04em;
+  }
+
+  .clear-exam-btn {
+    background: none;
+    border: none;
+    color: var(--muted);
+    font-family: 'Roboto Mono', monospace;
+    font-size: 0.7rem;
+    cursor: pointer;
+    padding: 0;
+    letter-spacing: 0.04em;
+    text-decoration: underline;
+    transition: color 0.15s;
+  }
+
+  .clear-exam-btn:hover { color: var(--incorrect); }
+
+  @media (max-width: 900px) {
+    .bottom-section {
+      grid-template-columns: 1fr;
+      padding: 0 24px 40px;
+    }
+    .bottom-card + .bottom-card {
+      padding: 32px 0 32px 0;
+      border-left: none;
+      border-top: 1px solid var(--border);
+    }
+  }
+    .main-layout {
+      grid-template-columns: 1fr;
+      padding: 24px 24px;
+    }
+    .typing-section {
+      padding-right: 0;
+      border-right: none;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 32px;
+      margin-bottom: 32px;
+    }
+    .definition-panel {
+      padding-left: 0;
+    }
+    header { padding: 20px 24px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">lexi<span>type</span></div>
+  <div class="header-stats">
+    <div class="header-stat">session wpm <strong id="session-wpm">—</strong></div>
+    <div class="header-stat">words learned <strong id="words-learned">0</strong></div>
+    <div class="header-stat">accuracy <strong id="session-acc">—</strong></div>
+  </div>
+</header>
+
+<div class="main-layout">
+
+  <div class="typing-section">
+    <div class="test-config">
+      <button class="config-btn active" data-mode="time" onclick="setMode('time',this)">time</button>
+      <button class="config-btn" data-mode="words" onclick="setMode('words',this)">words</button>
+      <span style="width:1px;background:var(--border);margin:0 4px;"></span>
+      <button class="config-btn active" data-dur="30" onclick="setDuration(30,this)">30s</button>
+      <button class="config-btn" data-dur="60" onclick="setDuration(60,this)">60s</button>
+      <button class="config-btn" data-dur="120" onclick="setDuration(120,this)">120s</button>
+    </div>
+
+    <div id="words-container" onclick="focusInput()">
+      <div id="words-inner"></div>
+    </div>
+
+    <input type="text" id="typing-input" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+
+    <div class="caret-hint" id="caret-hint">click here or start typing to begin</div>
+
+    <div class="reset-row">
+      <button class="icon-btn" onclick="resetTest()">↺ restart</button>
+      <button class="icon-btn" onclick="newWords()">⟳ new words</button>
+      <span class="word-count-badge" id="progress-badge"></span>
+    </div>
+
+    <!-- Result screen -->
+    <div id="result-screen">
+      <div class="result-title">test complete</div>
+      <div class="result-grid">
+        <div class="result-item">
+          <div class="label">wpm</div>
+          <div class="value" id="res-wpm">0</div>
+        </div>
+        <div class="result-item">
+          <div class="label">accuracy</div>
+          <div class="value green" id="res-acc">0%</div>
+        </div>
+        <div class="result-item">
+          <div class="label">correct</div>
+          <div class="value" id="res-correct">0</div>
+        </div>
+        <div class="result-item">
+          <div class="label">incorrect</div>
+          <div class="value" style="color:var(--incorrect)" id="res-incorrect">0</div>
+        </div>
+      </div>
+      <button class="retry-btn" onclick="resetTest()">try again</button>
+    </div>
+
+  </div>
+
+  <!-- RIGHT PANEL -->
+  <div class="definition-panel">
+    <div class="panel-label">current word</div>
+    <div class="def-card" id="def-card">
+      <div class="def-placeholder">
+        <div class="line"></div>
+        <div class="line"></div>
+        <div class="line"></div>
+        <div class="line"></div>
+        <div class="line"></div>
+      </div>
+    </div>
+
+    <div class="upcoming-label">up next</div>
+    <div class="word-queue" id="word-queue"></div>
+  </div>
+
+</div>
+
+<!-- BOTTOM SECTION: Todo + Exam Countdown -->
+<div class="bottom-section">
+
+  <!-- TODO -->
+  <div class="bottom-card">
+    <div class="bottom-card-label">study tasks</div>
+    <div class="todo-input-row">
+      <input type="text" id="todo-input" placeholder="add a task…" maxlength="80" onkeydown="if(event.key==='Enter') addTodo()">
+      <button onclick="addTodo()">+</button>
+    </div>
+    <ul id="todo-list"></ul>
+    <div class="todo-footer" id="todo-footer"></div>
+  </div>
+
+  <!-- COUNTDOWN -->
+  <div class="bottom-card countdown-card">
+    <div class="bottom-card-label">exam countdown</div>
+    <div class="exam-setup" id="exam-setup">
+      <input type="text" id="exam-name" placeholder="exam name (e.g. Biology Final)" maxlength="40">
+      <input type="datetime-local" id="exam-date">
+      <button onclick="setExam()">set exam</button>
+    </div>
+    <div class="exam-display" id="exam-display" style="display:none">
+      <div class="exam-title" id="exam-title-display"></div>
+      <div class="countdown-grid">
+        <div class="cd-unit"><span class="cd-val" id="cd-days">00</span><span class="cd-lbl">days</span></div>
+        <div class="cd-sep">:</div>
+        <div class="cd-unit"><span class="cd-val" id="cd-hours">00</span><span class="cd-lbl">hrs</span></div>
+        <div class="cd-sep">:</div>
+        <div class="cd-unit"><span class="cd-val" id="cd-mins">00</span><span class="cd-lbl">min</span></div>
+        <div class="cd-sep">:</div>
+        <div class="cd-unit"><span class="cd-val" id="cd-secs">00</span><span class="cd-lbl">sec</span></div>
+      </div>
+      <div class="exam-date-label" id="exam-date-label"></div>
+      <button class="clear-exam-btn" onclick="clearExam()">change exam</button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ─── WORD BANK ──────────────────────────────────────────────────────────────
+const WORD_BANK = [
+  { w:"ephemeral", pos:"adj", ph:"/ɪˈfɛm.ər.əl/", def:"Lasting for only a short time; transitory.", ex:"The ephemeral beauty of cherry blossoms draws millions each spring." },
+  { w:"sycophant", pos:"n", ph:"/ˈsɪk.ə.fənt/", def:"A person who acts obsequiously toward someone in order to gain advantage.", ex:"The king was surrounded by sycophants who praised his every decision." },
+  { w:"mellifluous", pos:"adj", ph:"/mɛˈlɪf.lu.əs/", def:"(Of a voice or sound) pleasingly smooth and musical.", ex:"Her mellifluous voice could calm even the most anxious audience." },
+  { w:"tenebrous", pos:"adj", ph:"/ˈtɛn.ɪ.brəs/", def:"Dark, shadowy, or obscure; difficult to understand.", ex:"The tenebrous forest path unnerved even the most seasoned hikers." },
+  { w:"loquacious", pos:"adj", ph:"/ləʊˈkweɪ.ʃəs/", def:"Tending to talk a great deal; garrulous.", ex:"His loquacious nature made every brief meeting run an hour overtime." },
+  { w:"perspicacious", pos:"adj", ph:"/ˌpɜː.spɪˈkeɪ.ʃəs/", def:"Having a ready insight into things; shrewd.", ex:"A perspicacious investor spotted the startup's potential early on." },
+  { w:"obstreperous", pos:"adj", ph:"/əbˈstrɛp.ər.əs/", def:"Noisy and difficult to control.", ex:"The obstreperous crowd drowned out the speaker entirely." },
+  { w:"solipsism", pos:"n", ph:"/ˈsɒl.ɪp.sɪz.əm/", def:"The view that the self is all that can be known to exist.", ex:"His solipsism made genuine empathy nearly impossible for him." },
+  { w:"recondite", pos:"adj", ph:"/ˈrɛk.ən.daɪt/", def:"Not known by many people; abstruse.", ex:"The professor's recondite references baffled most of the students." },
+  { w:"susurrus", pos:"n", ph:"/suːˈsʌr.əs/", def:"A whispering or rustling sound.", ex:"The susurrus of leaves made the forest feel alive at dusk." },
+  { w:"apricity", pos:"n", ph:"/əˈprɪs.ɪ.ti/", def:"The warmth of the sun in winter.", ex:"She stepped outside to enjoy the apricity on a cold February afternoon." },
+  { w:"ineffable", pos:"adj", ph:"/ɪˈnɛf.ə.bəl/", def:"Too great or extreme to be expressed or described in words.", ex:"The view from the summit was an ineffable experience." },
+  { w:"quixotic", pos:"adj", ph:"/kwɪkˈsɒt.ɪk/", def:"Exceedingly idealistic; unrealistic and impractical.", ex:"His quixotic plan to end poverty in a decade was admired but ridiculed." },
+  { w:"palimpsest", pos:"n", ph:"/ˈpæl.ɪmp.sɛst/", def:"A manuscript or document on which earlier writing has been erased.", ex:"The old city was a palimpsest of cultures layered over centuries." },
+  { w:"numinous", pos:"adj", ph:"/ˈnjuː.mɪ.nəs/", def:"Having a strong religious or spiritual quality; evoking awe.", ex:"The ancient cathedral had a numinous atmosphere that silenced all visitors." },
+  { w:"vellichor", pos:"n", ph:"/ˈvɛl.ɪ.kɔːr/", def:"The strange wistfulness of used bookshops.", ex:"She felt vellichor as she ran her fingers along the dusty spines." },
+  { w:"petrichor", pos:"n", ph:"/ˈpɛt.rɪ.kɔːr/", def:"A pleasant smell that frequently accompanies the first rain on dry earth.", ex:"The petrichor after the summer drought felt like relief itself." },
+  { w:"sempiternal", pos:"adj", ph:"/ˌsɛm.pɪˈtɜː.nəl/", def:"Eternal and unchanging; everlasting.", ex:"The sempiternal rhythm of the tides reminded her of time's indifference." },
+  { w:"laconic", pos:"adj", ph:"/ləˈkɒn.ɪk/", def:"Using very few words; brief and concise.", ex:"His laconic reply—simply 'no'—ended the debate immediately." },
+  { w:"liminal", pos:"adj", ph:"/ˈlɪm.ɪ.nəl/", def:"Relating to a transitional or threshold state.", ex:"Dawn is a liminal time, caught between night and day." },
+  { w:"insouciant", pos:"adj", ph:"/ɪnˈsuː.si.ənt/", def:"Showing a casual lack of concern; indifferent.", ex:"He strolled into the meeting late with an insouciant shrug." },
+  { w:"pulchritudinous", pos:"adj", ph:"/ˌpʌl.krɪˈtjuː.dɪ.nəs/", def:"Beautiful; having great physical beauty.", ex:"The pulchritudinous landscape attracted painters from across Europe." },
+  { w:"labyrinthine", pos:"adj", ph:"/ˌlæb.əˈrɪn.θaɪn/", def:"(Of a network) like a labyrinth; intricate and confusing.", ex:"The labyrinthine bureaucracy frustrated every applicant." },
+  { w:"penumbra", pos:"n", ph:"/pɪˈnʌm.brə/", def:"The partially shaded outer region of a shadow; a peripheral area.", ex:"The city existed in the penumbra of the capital's influence." },
+  { w:"kakorrhaphiophobia", pos:"n", ph:"/ˌkæk.ə.ˌræf.i.əˈfəʊ.bi.ə/", def:"The fear of failure or defeat.", ex:"Her kakorrhaphiophobia prevented her from submitting the application." },
+  { w:"scintilla", pos:"n", ph:"/sɪnˈtɪl.ə/", def:"A tiny trace or spark of a specified quality or feeling.", ex:"There wasn't a scintilla of evidence to support the claim." },
+  { w:"verisimilitude", pos:"n", ph:"/ˌvɛr.ɪ.sɪˈmɪl.ɪ.tjuːd/", def:"The appearance of being true or real.", ex:"The novel's verisimilitude made readers forget it was fiction." },
+  { w:"hiraeth", pos:"n", ph:"/ˈhɪər.aɪθ/", def:"A deep longing for home, especially one you can't return to.", ex:"Living abroad filled him with hiraeth every winter holiday." },
+  { w:"crepuscular", pos:"adj", ph:"/krɪˈpʌs.kjʊ.lər/", def:"Relating to or resembling twilight; appearing at dusk or dawn.", ex:"Deer are crepuscular animals, most active at dawn and dusk." },
+  { w:"sonder", pos:"n", ph:"/ˈsɒn.dər/", def:"The realization that each passerby has a vivid life as complex as your own.", ex:"He was struck by sonder watching strangers cross the busy square." },
+  { w:"logophile", pos:"n", ph:"/ˈlɒg.ə.faɪl/", def:"A lover of words.", ex:"Every logophile dreams of owning an unabridged Oxford English Dictionary." },
+  { w:"cimmerian", pos:"adj", ph:"/sɪˈmɪər.i.ən/", def:"Very dark, gloomy, or dense.", ex:"A cimmerian fog had settled over the harbour by morning." },
+  { w:"apophenia", pos:"n", ph:"/ˌæp.əˈfiː.ni.ə/", def:"The tendency to perceive meaningful connections between unrelated things.", ex:"Conspiracy theories often rely on apophenia rather than evidence." },
+  { w:"serendipity", pos:"n", ph:"/ˌsɛr.ənˈdɪp.ɪ.ti/", def:"The occurrence of events by happy accident.", ex:"Their meeting was pure serendipity—a chance delay on a rainy platform." },
+  { w:"psithurism", pos:"n", ph:"/ˈsɪθ.jʊ.rɪz.əm/", def:"The sound of wind through trees or rustling of leaves.", ex:"The psithurism of the pine canopy was deeply soothing." },
+  { w:"abscond", pos:"v", ph:"/əbˈskɒnd/", def:"Leave hurriedly and secretly, typically to escape consequences.", ex:"The accountant absconded with the company funds overnight." },
+  { w:"cerulean", pos:"adj", ph:"/sɪˈruː.li.ən/", def:"Deep sky-blue colour.", ex:"The cerulean sea stretched endlessly to the horizon." },
+  { w:"denouement", pos:"n", ph:"/ˈdeɪ.nuː.mɒ̃/", def:"The final part of a narrative in which everything is resolved.", ex:"The novel's denouement was unexpected yet completely satisfying." },
+  { w:"fugacious", pos:"adj", ph:"/fjuːˈɡeɪ.ʃəs/", def:"Tending to disappear; fleeting.", ex:"Youth is fugacious—we seldom appreciate it while we have it." },
+  { w:"syzygy", pos:"n", ph:"/ˈsɪz.ɪ.dʒi/", def:"Alignment of three celestial bodies in the same gravitational system.", ex:"A solar eclipse occurs during the syzygy of Sun, Moon, and Earth." },
+];
+
+// ─── STATE ────────────────────────────────────────────────────────────────────
+let currentWords = [];
+let currentWordIndex = 0;
+let charIndex = 0;
+let testActive = false;
+let testDone = false;
+let timerInterval = null;
+let timeLeft = 30;
+let totalDuration = 30;
+let mode = 'time'; // 'time' or 'words'
+let wordsTarget = 25;
+let correctChars = 0;
+let incorrectChars = 0;
+let correctWords = 0;
+let incorrectWords = 0;
+let sessionWPM = [];
+let sessionAcc = [];
+let wordsLearned = 0;
+let startTime = null;
+let wordElements = [];
+
+// ─── SETUP ────────────────────────────────────────────────────────────────────
+function shuffleWords() {
+  const shuffled = [...WORD_BANK].sort(() => Math.random() - 0.5);
+  return shuffled;
+}
+
+function setMode(m, btn) {
+  mode = m;
+  document.querySelectorAll('[data-mode]').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+function setDuration(d, btn) {
+  totalDuration = d;
+  timeLeft = d;
+  document.querySelectorAll('[data-dur]').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  if (!testActive) resetTest();
+}
+
+function initTest() {
+  testActive = false;
+  testDone = false;
+  correctChars = 0;
+  incorrectChars = 0;
+  correctWords = 0;
+  incorrectWords = 0;
+  charIndex = 0;
+  currentWordIndex = 0;
+  startTime = null;
+  clearInterval(timerInterval);
+  timeLeft = totalDuration;
+
+  currentWords = shuffleWords().slice(0, 40);
+  renderWords();
+  updateDefinitionPanel(0);
+  renderQueue();
+
+
+  document.getElementById('result-screen').style.display = 'none';
+  document.getElementById('words-container').style.display = 'block';
+  document.getElementById('caret-hint').style.display = 'block';
+  document.getElementById('progress-badge').textContent = '';
+  document.getElementById('typing-input').value = '';
+}
+
+function renderWords() {
+  const inner = document.getElementById('words-inner');
+  inner.innerHTML = '';
+  wordElements = [];
+  currentWords.forEach((wordObj, wi) => {
+    const wEl = document.createElement('span');
+    wEl.className = 'word' + (wi === 0 ? ' current-word' : '');
+    wEl.dataset.index = wi;
+    wordObj.w.split('').forEach((ch, ci) => {
+      const cEl = document.createElement('span');
+      cEl.className = 'char' + (wi === 0 && ci === 0 ? ' current' : '');
+      cEl.textContent = ch;
+      wEl.appendChild(cEl);
+    });
+    inner.appendChild(wEl);
+    inner.appendChild(document.createTextNode(' '));
+    wordElements.push(wEl);
+  });
+}
+
+function renderQueue() {
+  const queue = document.getElementById('word-queue');
+  queue.innerHTML = '';
+  const upcoming = currentWords.slice(currentWordIndex + 1, currentWordIndex + 6);
+  upcoming.forEach((wordObj, i) => {
+    const item = document.createElement('div');
+    item.className = 'queue-item' + (i === 0 ? ' active-q' : '');
+    item.innerHTML = `
+      <span class="queue-word">${wordObj.w}</span>
+      <span class="queue-pos">${wordObj.pos}</span>
+      <span class="queue-short">${wordObj.def.split(';')[0].split(',')[0].substring(0,30)}…</span>
+    `;
+    queue.appendChild(item);
+  });
+}
+
+function updateDefinitionPanel(wordIdx) {
+  const wordObj = currentWords[wordIdx];
+  if (!wordObj) return;
+  const card = document.getElementById('def-card');
+  card.innerHTML = `
+    <div class="def-word">${wordObj.w}</div>
+    <div class="def-phonetic">${wordObj.ph}</div>
+    <div class="def-pos">${wordObj.pos}</div>
+    <div class="def-meaning">${wordObj.def}</div>
+    <div class="def-example">${wordObj.ex}</div>
+  `;
+}
+
+// ─── TYPING LOGIC ─────────────────────────────────────────────────────────────
+document.getElementById('typing-input').addEventListener('input', handleInput);
+document.getElementById('typing-input').addEventListener('keydown', handleKeydown);
+document.addEventListener('keydown', (e) => {
+  const tag = document.activeElement.tagName;
+  const isInputFocused = tag === 'INPUT' || tag === 'TEXTAREA';
+  if (!isInputFocused && !testDone && !e.ctrlKey && !e.metaKey && !e.altKey && e.key.length === 1) {
+    focusInput();
+  }
+  if (e.key === 'Tab' && !isInputFocused) { e.preventDefault(); resetTest(); }
+});
+
+function focusInput() {
+  document.getElementById('typing-input').focus();
+}
+
+function handleInput(e) {
+  if (testDone) return;
+  const val = e.target.value;
+
+  if (!testActive && val.length > 0) {
+    startTest();
+  }
+  if (!testActive) return;
+
+  const wordObj = currentWords[currentWordIndex];
+  const wordEl = wordElements[currentWordIndex];
+  const chars = wordEl.querySelectorAll('.char');
+
+  // Clear current state
+  chars.forEach(c => { c.classList.remove('current'); });
+  // Remove extra chars
+  wordEl.querySelectorAll('.extra-char').forEach(c => c.remove());
+
+  const typed = val;
+  for (let i = 0; i < wordObj.w.length; i++) {
+    const c = chars[i];
+    c.classList.remove('correct','incorrect','current');
+    if (i < typed.length) {
+      if (typed[i] === wordObj.w[i]) {
+        c.classList.add('correct');
+      } else {
+        c.classList.add('incorrect');
+      }
+    }
+  }
+
+  // Extra chars
+  if (typed.length > wordObj.w.length) {
+    const extras = typed.slice(wordObj.w.length);
+    extras.split('').forEach(ch => {
+      const ex = document.createElement('span');
+      ex.className = 'extra-char';
+      ex.textContent = ch;
+      wordEl.appendChild(ex);
+    });
+  }
+
+  // Cursor on next char
+  if (typed.length < wordObj.w.length) {
+    chars[typed.length].classList.add('current');
+  }
+
+  charIndex = typed.length;
+  updateLiveStats();
+}
+
+function handleKeydown(e) {
+  if (testDone) return;
+  if (e.key === ' ') {
+    e.preventDefault();
+    const val = document.getElementById('typing-input').value.trim();
+    if (val.length === 0) return;
+    submitWord(val);
+  }
+}
+
+function submitWord(typed) {
+  const wordObj = currentWords[currentWordIndex];
+  const wordEl = wordElements[currentWordIndex];
+
+  // Count correct/incorrect chars
+  let wCorrect = 0, wIncorrect = 0;
+  for (let i = 0; i < Math.max(typed.length, wordObj.w.length); i++) {
+    if (i < wordObj.w.length && i < typed.length) {
+      if (typed[i] === wordObj.w[i]) wCorrect++;
+      else wIncorrect++;
+    } else {
+      wIncorrect++;
+    }
+  }
+  correctChars += wCorrect;
+  incorrectChars += wIncorrect;
+
+  const isCorrect = typed === wordObj.w;
+  if (isCorrect) { correctWords++; wordsLearned++; }
+  else incorrectWords++;
+
+  // Mark word done
+  wordEl.classList.remove('current-word');
+  wordEl.querySelectorAll('.char').forEach((c, i) => {
+    c.classList.remove('current', 'correct', 'incorrect');
+    if (i < typed.length) {
+      c.classList.add(typed[i] === wordObj.w[i] ? 'correct' : 'incorrect');
+    } else {
+      c.classList.add('incorrect');
+    }
+  });
+
+  currentWordIndex++;
+  document.getElementById('typing-input').value = '';
+  charIndex = 0;
+
+  if (currentWordIndex >= currentWords.length) {
+    endTest(); return;
+  }
+
+  // Activate next word
+  wordElements[currentWordIndex].classList.add('current-word');
+  const nextChars = wordElements[currentWordIndex].querySelectorAll('.char');
+  if (nextChars.length > 0) nextChars[0].classList.add('current');
+
+  // Scroll words
+  scrollWords();
+  updateDefinitionPanel(currentWordIndex);
+  renderQueue();
+  updateLiveStats();
+
+  document.getElementById('words-learned').textContent = wordsLearned;
+
+  if (mode === 'words' && currentWordIndex >= wordsTarget) {
+    endTest();
+  }
+}
+
+function scrollWords() {
+  const container = document.getElementById('words-container');
+  const inner = document.getElementById('words-inner');
+  const wordEl = wordElements[currentWordIndex];
+  if (!wordEl) return;
+  const wordTop = wordEl.offsetTop;
+  const lineH = 38.4;
+  const scrollTo = Math.floor(wordTop / lineH) * lineH;
+  inner.style.top = -Math.max(0, scrollTo - lineH) + 'px';
+}
+
+// ─── TIMER ────────────────────────────────────────────────────────────────────
+function startTest() {
+  testActive = true;
+  startTime = Date.now();
+  document.getElementById('caret-hint').style.display = 'none';
+
+  if (mode === 'time') {
+    timerInterval = setInterval(() => {
+      timeLeft--;
+      if (timeLeft <= 0) endTest();
+    }, 1000);
+  }
+}
+
+function updateLiveStats() {}
+
+function endTest() {
+  clearInterval(timerInterval);
+  testActive = false;
+  testDone = true;
+
+  const elapsed = startTime ? (Date.now() - startTime) / 1000 / 60 : totalDuration / 60;
+  const wpm = Math.round(correctWords / elapsed);
+  const total = correctChars + incorrectChars;
+  const acc = total > 0 ? Math.round(correctChars / total * 100) : 100;
+
+  sessionWPM.push(wpm);
+  sessionAcc.push(acc);
+  const avgWPM = Math.round(sessionWPM.reduce((a,b)=>a+b,0)/sessionWPM.length);
+  const avgAcc = Math.round(sessionAcc.reduce((a,b)=>a+b,0)/sessionAcc.length);
+
+  document.getElementById('session-wpm').textContent = avgWPM;
+  document.getElementById('session-acc').textContent = avgAcc + '%';
+
+  document.getElementById('res-wpm').textContent = wpm;
+  document.getElementById('res-acc').textContent = acc + '%';
+  document.getElementById('res-correct').textContent = correctWords;
+  document.getElementById('res-incorrect').textContent = incorrectWords;
+
+  document.getElementById('words-container').style.display = 'none';
+  document.getElementById('caret-hint').style.display = 'none';
+  document.getElementById('result-screen').style.display = 'flex';
+}
+
+function resetTest() {
+  clearInterval(timerInterval);
+  document.getElementById('typing-input').value = '';
+  document.getElementById('words-inner').style.top = '0';
+  initTest();
+}
+
+function newWords() {
+  resetTest();
+}
+
+// ─── TODO ─────────────────────────────────────────────────────────────────────
+let todos = JSON.parse(localStorage.getItem('lx-todos') || '[]');
+
+function saveTodos() { localStorage.setItem('lx-todos', JSON.stringify(todos)); }
+
+function renderTodos() {
+  const list = document.getElementById('todo-list');
+  list.innerHTML = '';
+  todos.forEach((t, i) => {
+    const li = document.createElement('li');
+    if (t.done) li.classList.add('done');
+    li.innerHTML = `
+      <div class="todo-check" onclick="toggleTodo(${i})">${t.done ? '✓' : ''}</div>
+      <span class="todo-text">${t.text}</span>
+      <button class="todo-del" onclick="deleteTodo(${i})">✕</button>
+    `;
+    list.appendChild(li);
+  });
+  const done = todos.filter(t => t.done).length;
+  const footer = document.getElementById('todo-footer');
+  footer.textContent = todos.length ? `${done} / ${todos.length} completed` : 'no tasks yet';
+}
+
+function addTodo() {
+  const inp = document.getElementById('todo-input');
+  const text = inp.value.trim();
+  if (!text) return;
+  todos.push({ text, done: false });
+  inp.value = '';
+  saveTodos();
+  renderTodos();
+}
+
+function toggleTodo(i) {
+  todos[i].done = !todos[i].done;
+  saveTodos();
+  renderTodos();
+}
+
+function deleteTodo(i) {
+  todos.splice(i, 1);
+  saveTodos();
+  renderTodos();
+}
+
+renderTodos();
+
+// ─── COUNTDOWN ────────────────────────────────────────────────────────────────
+let examData = JSON.parse(localStorage.getItem('lx-exam') || 'null');
+let cdInterval = null;
+
+function setExam() {
+  const name = document.getElementById('exam-name').value.trim() || 'Exam';
+  const date = document.getElementById('exam-date').value;
+  if (!date) return;
+  examData = { name, date };
+  localStorage.setItem('lx-exam', JSON.stringify(examData));
+  showExam();
+}
+
+function showExam() {
+  if (!examData) return;
+  document.getElementById('exam-setup').style.display = 'none';
+  document.getElementById('exam-display').style.display = 'block';
+  document.getElementById('exam-title-display').textContent = examData.name;
+  const d = new Date(examData.date);
+  document.getElementById('exam-date-label').textContent =
+    d.toLocaleDateString('en-US', { weekday:'long', year:'numeric', month:'long', day:'numeric' }) +
+    ' · ' + d.toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit' });
+  clearInterval(cdInterval);
+  tickCountdown();
+  cdInterval = setInterval(tickCountdown, 1000);
+}
+
+function tickCountdown() {
+  const now = Date.now();
+  const target = new Date(examData.date).getTime();
+  let diff = target - now;
+  if (diff <= 0) {
+    document.getElementById('cd-days').textContent = '00';
+    document.getElementById('cd-hours').textContent = '00';
+    document.getElementById('cd-mins').textContent = '00';
+    document.getElementById('cd-secs').textContent = '00';
+    clearInterval(cdInterval);
+    return;
+  }
+  const days = Math.floor(diff / 86400000); diff -= days * 86400000;
+  const hrs  = Math.floor(diff / 3600000);  diff -= hrs * 3600000;
+  const mins = Math.floor(diff / 60000);    diff -= mins * 60000;
+  const secs = Math.floor(diff / 1000);
+  document.getElementById('cd-days').textContent  = String(days).padStart(2,'0');
+  document.getElementById('cd-hours').textContent = String(hrs).padStart(2,'0');
+  document.getElementById('cd-mins').textContent  = String(mins).padStart(2,'0');
+  document.getElementById('cd-secs').textContent  = String(secs).padStart(2,'0');
+}
+
+function clearExam() {
+  examData = null;
+  localStorage.removeItem('lx-exam');
+  clearInterval(cdInterval);
+  document.getElementById('exam-setup').style.display = 'flex';
+  document.getElementById('exam-display').style.display = 'none';
+  document.getElementById('exam-name').value = '';
+  document.getElementById('exam-date').value = '';
+}
+
+if (examData) showExam();
+
+// ─── BOOT ─────────────────────────────────────────────────────────────────────
+initTest();
+focusInput();
+</script>
+</body>
+</html>
