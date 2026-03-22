@@ -3,559 +3,309 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Lexicon — Daily Words</title>
-<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400;1,700&family=DM+Mono:wght@300;400&family=DM+Sans:wght@300;400&display=swap" rel="stylesheet">
+<title>pomo</title>
 <style>
+  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
+
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
   :root {
-    --bg: #0e0e0f;
-    --surface: #161618;
-    --surface2: #1e1e21;
-    --border: #2a2a2e;
-    --gold: #c9a84c;
-    --gold-dim: #7a5e28;
-    --text: #e8e4dc;
-    --text-muted: #7a7870;
-    --text-mid: #b0ab9f;
-    --red: #c45c4a;
-    --green: #5a9e72;
-    --blue: #5a82ae;
+    --bg: #0a0a0a;
+    --fg: #c8c8c8;
+    --accent: #e8e8e8;
+    --dim: #444;
+    --work: #d4d4d4;
+    --break: #888;
+    --cursor: #c8c8c8;
   }
 
-  html, body { height: 100%; background: var(--bg); color: var(--text); font-family: 'DM Sans', sans-serif; font-weight: 300; overflow: hidden; }
-
-  body::before {
-    content: '';
-    position: fixed; inset: 0;
-    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-    opacity: 0.025; pointer-events: none; z-index: 999;
+  html, body {
+    height: 100%;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: 'Share Tech Mono', monospace;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    user-select: none;
   }
 
-  .page {
-    height: 100vh;
-    display: grid;
-    grid-template-rows: auto 1fr auto;
-    padding: 24px 40px;
+  #app {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
   }
 
-  header {
-    display: flex; justify-content: space-between; align-items: center;
-    padding-bottom: 18px; border-bottom: 1px solid var(--border);
-    animation: fadeDown 0.6s ease both;
+  /* THE CLOCK — only visible element */
+  #clock {
+    font-size: clamp(80px, 18vw, 180px);
+    font-weight: 400;
+    letter-spacing: 0.05em;
+    line-height: 1;
+    color: var(--accent);
+    transition: color 0.4s ease, opacity 0.2s;
+    font-variant-numeric: tabular-nums;
   }
 
-  .logo { font-family: 'Playfair Display', serif; font-size: 1.05rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--gold); }
-
-  .header-right { display: flex; align-items: center; gap: 24px; }
-
-  .date-display { font-family: 'DM Mono', monospace; font-size: 0.68rem; color: var(--text-muted); letter-spacing: 0.08em; }
-
-  .streak { display: flex; align-items: center; gap: 6px; font-family: 'DM Mono', monospace; font-size: 0.68rem; color: var(--gold); letter-spacing: 0.06em; }
-  .streak-dot { width: 6px; height: 6px; background: var(--gold); border-radius: 50%; animation: pulse 2s infinite; }
-
-  .diff-badge { font-family: 'DM Mono', monospace; font-size: 0.58rem; letter-spacing: 0.14em; text-transform: uppercase; padding: 3px 9px; border-radius: 2px; border: 1px solid; }
-  .diff-badge.easy   { color: var(--green); border-color: var(--green); }
-  .diff-badge.medium { color: var(--gold);  border-color: var(--gold-dim); }
-  .diff-badge.hard   { color: var(--red);   border-color: var(--red); }
-  .diff-badge.all    { color: var(--blue);  border-color: var(--blue); }
-
-  .center { display: flex; flex-direction: column; align-items: center; justify-content: center; }
-
-  .card-wrap {
-    perspective: 1200px;
-    width: min(660px, 92vw);
-    height: min(370px, 54vw);
-    cursor: pointer;
-    animation: fadeUp 0.7s ease 0.2s both;
+  #clock.paused {
+    animation: blink 1.2s step-start infinite;
   }
 
-  .card {
-    width: 100%; height: 100%;
-    position: relative; transform-style: preserve-3d;
-    transition: transform 0.6s cubic-bezier(0.4,0.2,0.2,1);
+  #clock.break-mode {
+    color: var(--break);
   }
-  .card.flipped { transform: rotateY(180deg); }
 
-  .card-face {
-    position: absolute; inset: 0; backface-visibility: hidden;
-    border-radius: 4px; border: 1px solid var(--border);
-    background: var(--surface);
-    display: flex; flex-direction: column; align-items: center; justify-content: center;
-    padding: 40px; text-align: center; overflow: hidden;
+  @keyframes blink {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.25; }
   }
-  .card-face::before {
-    content: ''; position: absolute; inset: 0;
-    background: radial-gradient(ellipse at 30% 20%, rgba(201,168,76,0.04) 0%, transparent 60%);
+
+  /* subtle status line — barely visible, CLI feel */
+  #status {
+    font-size: 11px;
+    color: var(--dim);
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    margin-top: 18px;
+    height: 14px;
+    transition: color 0.3s;
+  }
+
+  #status.visible {
+    color: #555;
+  }
+
+  /* bottom hint bar */
+  #hint {
+    position: fixed;
+    bottom: 22px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 10px;
+    color: #2a2a2a;
+    letter-spacing: 0.15em;
+    white-space: nowrap;
+    transition: color 0.3s;
+  }
+
+  body:hover #hint {
+    color: #3a3a3a;
+  }
+
+  /* flash overlay on session end */
+  #flash {
+    position: fixed;
+    inset: 0;
+    background: #fff;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.05s;
+  }
+
+  #flash.go {
+    opacity: 0.06;
+    transition: opacity 0.8s ease-out;
+  }
+
+  /* progress ring — ultra thin, barely there */
+  #ring-wrap {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     pointer-events: none;
   }
-  .card-face::after {
-    content: ''; position: absolute; top: 16px; right: 16px;
-    width: 38px; height: 38px;
-    border-top: 1px solid var(--border); border-right: 1px solid var(--border);
-    border-radius: 0 4px 0 0;
+
+  #ring {
+    width: min(70vw, 70vh);
+    height: min(70vw, 70vh);
   }
-  .card-back { transform: rotateY(180deg); background: var(--surface2); }
 
-  .word-pos  { font-family: 'DM Mono', monospace; font-size: 0.62rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--gold); margin-bottom: 14px; }
-  .word-main { font-family: 'Playfair Display', serif; font-size: clamp(2.6rem, 5.5vw, 4rem); font-weight: 400; line-height: 1.1; color: var(--text); }
-  .word-pron { font-family: 'DM Mono', monospace; font-size: 0.72rem; color: var(--text-muted); margin-top: 12px; }
-  .flip-hint { position: absolute; bottom: 18px; font-family: 'DM Mono', monospace; font-size: 0.58rem; color: var(--text-muted); letter-spacing: 0.14em; text-transform: uppercase; opacity: 0.5; }
+  #ring circle.track {
+    fill: none;
+    stroke: #1a1a1a;
+    stroke-width: 1;
+  }
 
-  .def-label { font-family: 'DM Mono', monospace; font-size: 0.58rem; letter-spacing: 0.22em; text-transform: uppercase; color: var(--gold-dim); margin-bottom: 12px; align-self: flex-start; }
-  .def-text  { font-family: 'Playfair Display', serif; font-style: italic; font-size: clamp(0.92rem, 2vw, 1.18rem); line-height: 1.65; color: var(--text); text-align: left; align-self: flex-start; max-width: 500px; }
-  .example-text { margin-top: 16px; align-self: flex-start; font-family: 'DM Sans', sans-serif; font-size: 0.78rem; color: var(--text-muted); line-height: 1.6; max-width: 500px; border-left: 2px solid var(--border); padding-left: 12px; }
+  #ring circle.prog {
+    fill: none;
+    stroke: #333;
+    stroke-width: 1;
+    stroke-linecap: butt;
+    transform-origin: center;
+    transform: rotate(-90deg);
+    transition: stroke-dashoffset 1s linear, stroke 0.4s;
+  }
 
-  .controls { display: flex; align-items: center; gap: 12px; margin-top: 24px; animation: fadeUp 0.7s ease 0.35s both; }
-
-  .btn { display: flex; align-items: center; gap: 6px; padding: 8px 20px; border: 1px solid var(--border); background: transparent; color: var(--text-muted); font-family: 'DM Mono', monospace; font-size: 0.63rem; letter-spacing: 0.12em; text-transform: uppercase; cursor: pointer; border-radius: 2px; transition: all 0.2s; }
-  .btn:hover { color: var(--text); border-color: #4a4a52; }
-  .btn.btn-know  { color: var(--green); border-color: var(--green); }
-  .btn.btn-know:hover  { background: rgba(90,158,114,0.1); }
-  .btn.btn-again { color: var(--red);   border-color: var(--red); }
-  .btn.btn-again:hover { background: rgba(196,92,74,0.1); }
-  .btn:disabled  { opacity: 0.25; cursor: default; pointer-events: none; }
-
-  .progress-pill { font-family: 'DM Mono', monospace; font-size: 0.63rem; color: var(--text-muted); letter-spacing: 0.1em; padding: 8px 0; min-width: 64px; text-align: center; }
-
-  footer { display: flex; justify-content: space-between; align-items: center; padding-top: 18px; border-top: 1px solid var(--border); animation: fadeDown 0.6s ease 0.1s both; }
-
-  .footer-left { display: flex; flex-direction: column; gap: 8px; }
-  .progress-bar-wrap { width: 200px; height: 2px; background: var(--border); border-radius: 2px; overflow: hidden; }
-  .progress-bar-fill { height: 100%; background: var(--gold); border-radius: 2px; transition: width 0.4s ease; }
-  .kbd-hints { display: flex; gap: 14px; }
-  .kbd { font-family: 'DM Mono', monospace; font-size: 0.55rem; color: var(--text-muted); opacity: 0.5; letter-spacing: 0.06em; }
-  .kbd span { display: inline-block; border: 1px solid var(--border); padding: 1px 5px; border-radius: 2px; margin-right: 4px; }
-
-  .footer-stats { display: flex; gap: 24px; }
-  .stat { text-align: right; }
-  .stat-val   { font-family: 'DM Mono', monospace; font-size: 0.88rem; color: var(--text); }
-  .stat-label { font-family: 'DM Mono', monospace; font-size: 0.56rem; color: var(--text-muted); letter-spacing: 0.1em; text-transform: uppercase; margin-top: 2px; }
-
-  .complete-screen { display: none; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 14px; }
-  .complete-screen.visible { display: flex; animation: fadeUp 0.5s ease both; }
-  .complete-title { font-family: 'Playfair Display', serif; font-size: 2.6rem; color: var(--gold); }
-  .complete-sub   { font-family: 'DM Mono', monospace; font-size: 0.7rem; color: var(--text-muted); letter-spacing: 0.1em; }
-  .complete-stats { display: flex; gap: 36px; margin-top: 16px; }
-  .c-stat-val { font-family: 'Playfair Display', serif; font-size: 1.9rem; color: var(--text); }
-  .btn-restart { margin-top: 8px; padding: 11px 32px; background: transparent; border: 1px solid var(--gold-dim); color: var(--gold); font-family: 'DM Mono', monospace; font-size: 0.68rem; letter-spacing: 0.18em; text-transform: uppercase; cursor: pointer; border-radius: 2px; transition: all 0.2s; }
-  .btn-restart:hover { background: rgba(201,168,76,0.08); }
-
-  .diff-selector { display: flex; gap: 10px; margin-bottom: 20px; animation: fadeUp 0.5s ease both; }
-  .diff-btn { padding: 6px 16px; border: 1px solid var(--border); background: transparent; font-family: 'DM Mono', monospace; font-size: 0.6rem; letter-spacing: 0.14em; text-transform: uppercase; cursor: pointer; border-radius: 2px; transition: all 0.2s; color: var(--text-muted); }
-  .diff-btn:hover { border-color: #4a4a52; color: var(--text); }
-  .diff-btn.active.easy   { color: var(--green); border-color: var(--green); background: rgba(90,158,114,0.08); }
-  .diff-btn.active.medium { color: var(--gold);  border-color: var(--gold);  background: rgba(201,168,76,0.08); }
-  .diff-btn.active.hard   { color: var(--red);   border-color: var(--red);   background: rgba(196,92,74,0.08); }
-  .diff-btn.active.all    { color: var(--blue);  border-color: var(--blue);  background: rgba(90,130,174,0.08); }
-
-  @keyframes fadeUp   { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }
-  @keyframes fadeDown { from { opacity:0; transform:translateY(-10px); } to { opacity:1; transform:translateY(0); } }
-  @keyframes pulse    { 0%,100% { opacity:1; } 50% { opacity:0.3; } }
+  #ring circle.prog.break-mode {
+    stroke: #222;
+  }
 </style>
 </head>
 <body>
-<div class="page">
 
-  <header>
-    <div class="logo">Lexicon</div>
-    <div class="header-right">
-      <div class="date-display" id="dateDisplay"></div>
-      <div id="diffBadge" class="diff-badge medium">Medium</div>
-      <div class="streak"><div class="streak-dot"></div><span id="streakDisplay">0 day streak</span></div>
-    </div>
-  </header>
-
-  <div class="center">
-    <div class="diff-selector" id="diffSelector">
-      <button class="diff-btn easy"          onclick="setDiff('easy')">Easy</button>
-      <button class="diff-btn medium active" onclick="setDiff('medium')">Medium</button>
-      <button class="diff-btn hard"          onclick="setDiff('hard')">Hard</button>
-      <button class="diff-btn all"           onclick="setDiff('all')">All</button>
-    </div>
-
-    <div class="card-wrap" id="cardWrap">
-      <div class="card" id="card">
-        <div class="card-face card-front">
-          <div class="word-pos"  id="wordPos">—</div>
-          <div class="word-main" id="wordMain">—</div>
-          <div class="word-pron" id="wordPron"></div>
-          <div class="flip-hint">click · space to reveal</div>
-        </div>
-        <div class="card-face card-back">
-          <div class="def-label">Definition</div>
-          <div class="def-text"     id="defText"></div>
-          <div class="example-text" id="exText"></div>
-          <div class="flip-hint">← again &nbsp;·&nbsp; knew it →</div>
-        </div>
-      </div>
-    </div>
-
-    <div class="controls" id="controls">
-      <button class="btn btn-again" id="btnAgain" onclick="markCard(false)" disabled>
-        <svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M2 6a4 4 0 1 1 4 4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><path d="M2 4v2h2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        Again
-      </button>
-      <span class="progress-pill" id="progressPill">1 / 12</span>
-      <button class="btn btn-know" id="btnKnow" onclick="markCard(true)" disabled>
-        Knew it
-        <svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M2 6l3 3 5-5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      </button>
-    </div>
-
-    <div class="complete-screen" id="completeScreen">
-      <div class="complete-title">Well done.</div>
-      <div class="complete-sub" id="completeSub">Session complete</div>
-      <div class="complete-stats">
-        <div class="stat"><div class="c-stat-val" id="cKnew">0</div><div class="stat-label">Knew</div></div>
-        <div class="stat"><div class="c-stat-val" id="cLearn">0</div><div class="stat-label">Learning</div></div>
-        <div class="stat"><div class="c-stat-val" id="cTotal">0</div><div class="stat-label">Total</div></div>
-      </div>
-      <button class="btn-restart" onclick="restartSession()">New Session ↻</button>
-    </div>
-  </div>
-
-  <footer>
-    <div class="footer-left">
-      <div class="progress-bar-wrap"><div class="progress-bar-fill" id="progressBar" style="width:0%"></div></div>
-      <div class="kbd-hints">
-        <div class="kbd"><span>Space</span>flip</div>
-        <div class="kbd"><span>→</span>knew it</div>
-        <div class="kbd"><span>←</span>again</div>
-      </div>
-    </div>
-    <div class="footer-stats">
-      <div class="stat"><div class="stat-val" id="knewStat">0</div><div class="stat-label">Knew</div></div>
-      <div class="stat"><div class="stat-val" id="againStat">0</div><div class="stat-label">Again</div></div>
-    </div>
-  </footer>
-
+<div id="ring-wrap">
+  <svg id="ring" viewBox="0 0 200 200">
+    <circle class="prog"  cx="100" cy="100" r="96" id="progCircle"/>
+  </svg>
 </div>
+
+<div id="flash"></div>
+
+<div id="app">
+  <div id="clock">25:00</div>
+  <div id="status">work · #1</div>
+</div>
+
+<div id="hint">spc — start/pause · r — reset · b — break · [ ] — time</div>
+
 <script>
-// ═══════════════════════════════════════════════════════
-//  BUILT-IN DICTIONARY  (fully offline — no internet needed)
-//  d: 1=easy  2=medium  3=hard
-// ═══════════════════════════════════════════════════════
-const DICT = [
-  // EASY
-  {w:"Vivid",pos:"adjective",pron:"/ˈvɪv.ɪd/",d:1,def:"Producing powerful feelings or strong, clear images in the mind.",ex:"She had a vivid memory of the afternoon they first met."},
-  {w:"Serene",pos:"adjective",pron:"/səˈriːn/",d:1,def:"Calm, peaceful, and untroubled.",ex:"The lake was serene at dawn, with no wind to ripple its surface."},
-  {w:"Dread",pos:"noun/verb",pron:"/drɛd/",d:1,def:"Great fear or apprehension about a future event.",ex:"She felt a cold dread as the exam date approached."},
-  {w:"Bleak",pos:"adjective",pron:"/bliːk/",d:1,def:"Lacking warmth, hope, or joy; bare and unwelcoming.",ex:"The bleak winter landscape stretched endlessly before them."},
-  {w:"Cunning",pos:"adjective",pron:"/ˈkʌn.ɪŋ/",d:1,def:"Having or showing skill in achieving aims by deceit.",ex:"The cunning fox outwitted the hound at every turn."},
-  {w:"Feeble",pos:"adjective",pron:"/ˈfiː.bəl/",d:1,def:"Lacking physical strength; failing to convince or impress.",ex:"His feeble excuse convinced no one in the room."},
-  {w:"Barren",pos:"adjective",pron:"/ˈbær.ən/",d:1,def:"Too poor to produce vegetation; unproductive or empty.",ex:"The barren desert offered nothing but sand and silence."},
-  {w:"Brisk",pos:"adjective",pron:"/brɪsk/",d:1,def:"Active, fast, and energetic; pleasantly cold and fresh.",ex:"They walked at a brisk pace to stay warm in the morning air."},
-  {w:"Conceal",pos:"verb",pron:"/kənˈsiːl/",d:1,def:"To keep something secret or hidden from others.",ex:"She tried to conceal her disappointment behind a steady smile."},
-  {w:"Flaw",pos:"noun",pron:"/flɔː/",d:1,def:"A mark, mistake, or weakness that spoils something.",ex:"The diamond was perfect except for a single tiny flaw."},
-  {w:"Harsh",pos:"adjective",pron:"/hɑːʃ/",d:1,def:"Unpleasantly rough or severe; cruel or unkind.",ex:"The judge delivered a harsh verdict that shocked the courtroom."},
-  {w:"Idle",pos:"adjective",pron:"/ˈaɪ.dəl/",d:1,def:"Not working or being used; avoiding work; without purpose.",ex:"Idle hands often find trouble, as the old proverb warns."},
-  {w:"Keen",pos:"adjective",pron:"/kiːn/",d:1,def:"Having or showing eagerness or enthusiasm; sharp.",ex:"She was keen to learn everything she could about astronomy."},
-  {w:"Linger",pos:"verb",pron:"/ˈlɪŋ.ɡər/",d:1,def:"To stay in a place or situation longer than necessary.",ex:"The scent of her perfume lingered long after she had gone."},
-  {w:"Meek",pos:"adjective",pron:"/miːk/",d:1,def:"Quiet, gentle, and submissive; not inclined to argue.",ex:"His meek manner hid a sharp and calculating mind."},
-  {w:"Nimble",pos:"adjective",pron:"/ˈnɪm.bəl/",d:1,def:"Quick and light in movement; able to think and act quickly.",ex:"Her nimble fingers wove the thread with remarkable speed."},
-  {w:"Ominous",pos:"adjective",pron:"/ˈɒm.ɪ.nəs/",d:1,def:"Giving the impression that something bad is about to happen.",ex:"Dark ominous clouds gathered on the horizon before the storm."},
-  {w:"Ponder",pos:"verb",pron:"/ˈpɒn.dər/",d:1,def:"To think about something carefully, especially before deciding.",ex:"She paused to ponder the question before giving her answer."},
-  {w:"Quaint",pos:"adjective",pron:"/kweɪnt/",d:1,def:"Attractively unusual or old-fashioned.",ex:"The quaint village hadn't changed much in a hundred years."},
-  {w:"Rigid",pos:"adjective",pron:"/ˈrɪdʒ.ɪd/",d:1,def:"Unable to bend or be forced out of shape; strict and fixed.",ex:"His rigid schedule left no room for spontaneity."},
-  {w:"Somber",pos:"adjective",pron:"/ˈsɒm.bər/",d:1,def:"Dark or dull; oppressively solemn or serious.",ex:"The funeral was a somber occasion attended in near silence."},
-  {w:"Timid",pos:"adjective",pron:"/ˈtɪm.ɪd/",d:1,def:"Showing a lack of courage or confidence; easily frightened.",ex:"The timid child peeked around the corner before entering."},
-  {w:"Vague",pos:"adjective",pron:"/veɪɡ/",d:1,def:"Of uncertain or indefinite character; not clearly expressed.",ex:"Her instructions were so vague that no one knew what to do."},
-  {w:"Wary",pos:"adjective",pron:"/ˈweər.i/",d:1,def:"Feeling or showing caution about possible dangers.",ex:"He was wary of the stranger who lingered outside the gate."},
-  {w:"Yearn",pos:"verb",pron:"/jɜːn/",d:1,def:"To have an intense feeling of longing for something.",ex:"She yearned to return to the mountains she had loved as a child."},
-  {w:"Frail",pos:"adjective",pron:"/freɪl/",d:1,def:"Weak and delicate; easily damaged or broken.",ex:"The frail old man moved slowly but with great dignity."},
-  {w:"Grim",pos:"adjective",pron:"/ɡrɪm/",d:1,def:"Forbidding or uninviting; very serious or gloomy.",ex:"The news from the front was grim, and everyone knew it."},
-  {w:"Haste",pos:"noun",pron:"/heɪst/",d:1,def:"Excessive speed or urgency of movement or action; hurry.",ex:"In her haste to leave, she forgot her keys on the table."},
-  {w:"Inept",pos:"adjective",pron:"/ɪˈnept/",d:1,def:"Having or showing no skill; clumsy or incompetent.",ex:"The inept repairman left the tap worse than he found it."},
-  {w:"Jest",pos:"noun/verb",pron:"/dʒest/",d:1,def:"A joke or witty remark; to speak or act in a joking manner.",ex:"He said it in jest, but the words stung all the same."},
-  // MEDIUM
-  {w:"Acumen",pos:"noun",pron:"/ˈæk.jʊ.mən/",d:2,def:"The ability to make good judgements and quick decisions.",ex:"Her business acumen turned a small idea into a thriving enterprise."},
-  {w:"Aloof",pos:"adjective",pron:"/əˈluːf/",d:2,def:"Not friendly or forthcoming; cool and distant in manner.",ex:"He remained aloof at parties, preferring to observe rather than engage."},
-  {w:"Ambiguous",pos:"adjective",pron:"/æmˈbɪɡ.ju.əs/",d:2,def:"Open to more than one interpretation; not clear or decided.",ex:"The contract was so ambiguous that lawyers disagreed on its meaning."},
-  {w:"Ardent",pos:"adjective",pron:"/ˈɑː.dənt/",d:2,def:"Very enthusiastic or passionate about something.",ex:"He was an ardent supporter of democratic reform throughout his life."},
-  {w:"Astute",pos:"adjective",pron:"/əˈstjuːt/",d:2,def:"Having an ability to assess things accurately and cleverly.",ex:"The astute investor spotted the company's potential before anyone else."},
-  {w:"Candid",pos:"adjective",pron:"/ˈkæn.dɪd/",d:2,def:"Truthful and straightforward; frank even when it's uncomfortable.",ex:"She gave a candid assessment of the project's many weaknesses."},
-  {w:"Covert",pos:"adjective",pron:"/ˈkəʊ.vɜːt/",d:2,def:"Not openly acknowledged or displayed; secret or hidden.",ex:"The spy agency ran a covert operation across three countries."},
-  {w:"Credulous",pos:"adjective",pron:"/ˈkred.jʊ.ləs/",d:2,def:"Too willing to believe things; easily deceived.",ex:"The credulous crowd accepted every claim without question."},
-  {w:"Desolate",pos:"adjective",pron:"/ˈdes.ə.lət/",d:2,def:"Bleak and empty; feeling or showing great unhappiness.",ex:"After the flood, the town was a desolate landscape of debris and mud."},
-  {w:"Diffident",pos:"adjective",pron:"/ˈdɪf.ɪ.dənt/",d:2,def:"Modest or shy due to a lack of self-confidence.",ex:"Despite her talent, she was too diffident to put her work on display."},
-  {w:"Eloquent",pos:"adjective",pron:"/ˈel.ə.kwənt/",d:2,def:"Fluent and persuasive in speaking or writing.",ex:"His eloquent speech moved the crowd to both laughter and tears."},
-  {w:"Enigmatic",pos:"adjective",pron:"/ˌen.ɪɡˈmæt.ɪk/",d:2,def:"Difficult to interpret or understand; mysterious.",ex:"The painting's enigmatic smile has fascinated viewers for centuries."},
-  {w:"Fervent",pos:"adjective",pron:"/ˈfɜː.vənt/",d:2,def:"Having or displaying a passionate intensity.",ex:"She offered a fervent prayer before the most important moment of her life."},
-  {w:"Furtive",pos:"adjective",pron:"/ˈfɜː.tɪv/",d:2,def:"Attempting to avoid notice; secretive and sly.",ex:"He cast a furtive glance around before slipping the letter beneath the door."},
-  {w:"Gravity",pos:"noun",pron:"/ˈɡræv.ɪ.ti/",d:2,def:"Extreme importance; seriousness; also the force pulling objects toward Earth.",ex:"The gravity of the situation finally dawned on them as the hours passed."},
-  {w:"Harrowing",pos:"adjective",pron:"/ˈhær.əʊ.ɪŋ/",d:2,def:"Intensely distressing; causing great suffering.",ex:"The survivors shared harrowing accounts of the disaster."},
-  {w:"Impetuous",pos:"adjective",pron:"/ɪmˈpet.ju.əs/",d:2,def:"Acting quickly and without thought; impulsive.",ex:"His impetuous decision to quit cost him years of hard-won progress."},
-  {w:"Integrity",pos:"noun",pron:"/ɪnˈteɡ.rɪ.ti/",d:2,def:"The quality of being honest and having strong moral principles.",ex:"She refused the bribe, citing her integrity as reason enough."},
-  {w:"Lucid",pos:"adjective",pron:"/ˈluː.sɪd/",d:2,def:"Expressed clearly; easy to understand; mentally clear.",ex:"Even at ninety, her mind remained lucid and precise."},
-  {w:"Malice",pos:"noun",pron:"/ˈmæl.ɪs/",d:2,def:"The intention or desire to do evil or cause harm.",ex:"The prank was done not in jest but with clear malice."},
-  {w:"Meticulous",pos:"adjective",pron:"/məˈtɪk.jʊ.ləs/",d:2,def:"Showing great attention to detail; very careful and precise.",ex:"She kept meticulous records of every transaction over twenty years."},
-  {w:"Mundane",pos:"adjective",pron:"/mʌnˈdeɪn/",d:2,def:"Lacking interest or excitement; ordinary and everyday.",ex:"He longed for adventure, tired of the mundane routine of office life."},
-  {w:"Nostalgia",pos:"noun",pron:"/nɒˈstæl.dʒə/",d:2,def:"A sentimental longing for a happy past.",ex:"The old photograph stirred a deep nostalgia for her childhood summers."},
-  {w:"Obscure",pos:"adjective",pron:"/əbˈskjʊər/",d:2,def:"Not discovered or known; not clearly expressed; remote from notice.",ex:"The song was an obscure B-side that few collectors had ever heard."},
-  {w:"Persevere",pos:"verb",pron:"/ˌpɜː.sɪˈvɪər/",d:2,def:"To continue doing something despite difficulty or delay in achieving success.",ex:"She persevered through three rejections before the manuscript was accepted."},
-  {w:"Pragmatic",pos:"adjective",pron:"/præɡˈmæt.ɪk/",d:2,def:"Dealing with things sensibly and realistically, not theoretically.",ex:"She took a pragmatic approach, fixing what could be fixed and ignoring the rest."},
-  {w:"Profound",pos:"adjective",pron:"/prəˈfaʊnd/",d:2,def:"Very great or intense; having great insight or depth of knowledge.",ex:"The philosopher's most profound work remained unpublished at his death."},
-  {w:"Prudent",pos:"adjective",pron:"/ˈpruː.dənt/",d:2,def:"Acting with care and thought for the future; wise in practical matters.",ex:"It would be prudent to save some money before leaving your job."},
-  {w:"Resilient",pos:"adjective",pron:"/rɪˈzɪl.i.ənt/",d:2,def:"Able to withstand or recover quickly from difficult conditions.",ex:"Children are often more resilient than adults give them credit for."},
-  {w:"Resolute",pos:"adjective",pron:"/ˈrez.ə.luːt/",d:2,def:"Admirably purposeful, determined, and unwavering.",ex:"Despite the setbacks, she remained resolute in her pursuit of justice."},
-  {w:"Ruthless",pos:"adjective",pron:"/ˈruːθ.ləs/",d:2,def:"Having or showing no pity or compassion; mercilessly harsh.",ex:"The ruthless general left nothing standing in his path."},
-  {w:"Skeptical",pos:"adjective",pron:"/ˈskep.tɪ.kəl/",d:2,def:"Not easily convinced; having doubts or reservations.",ex:"She was skeptical of the study's conclusions given its small sample size."},
-  {w:"Stoic",pos:"adjective",pron:"/ˈstəʊ.ɪk/",d:2,def:"Enduring pain or hardship without showing feelings or complaining.",ex:"He bore the loss with stoic dignity that impressed everyone who knew him."},
-  {w:"Subtle",pos:"adjective",pron:"/ˈsʌt.əl/",d:2,def:"So delicate as to be difficult to analyse; not obvious.",ex:"There was a subtle shift in her tone that only he noticed."},
-  {w:"Tenacious",pos:"adjective",pron:"/tɪˈneɪ.ʃəs/",d:2,def:"Holding firmly to something; persistent and not giving up.",ex:"Her tenacious grip on the case kept it alive when others had moved on."},
-  {w:"Volatile",pos:"adjective",pron:"/ˈvɒl.ə.taɪl/",d:2,def:"Liable to change rapidly and unpredictably, especially for the worse.",ex:"The volatile stock market wiped out a decade of gains in a single day."},
-  {w:"Wistful",pos:"adjective",pron:"/ˈwɪst.fəl/",d:2,def:"Having a feeling of vague or regretful longing.",ex:"She gazed at the old house with a wistful expression."},
-  {w:"Zealous",pos:"adjective",pron:"/ˈzel.əs/",d:2,def:"Having or showing great energy or enthusiasm in pursuit of a cause.",ex:"The zealous campaigner knocked on every door in the neighbourhood."},
-  {w:"Archaic",pos:"adjective",pron:"/ɑːˈkeɪ.ɪk/",d:2,def:"Very old or old-fashioned; no longer in everyday use.",ex:"The archaic law had not been enforced in over two centuries."},
-  {w:"Benevolent",pos:"adjective",pron:"/bɪˈnev.ə.lənt/",d:2,def:"Well-meaning and kindly; generous or charitable.",ex:"The benevolent donor funded the library anonymously for thirty years."},
-  {w:"Complacent",pos:"adjective",pron:"/kəmˈpleɪ.sənt/",d:2,def:"Showing uncritical satisfaction with oneself or one's achievements.",ex:"Growing complacent after early success, the team lost its competitive edge."},
-  {w:"Contempt",pos:"noun",pron:"/kənˈtempt/",d:2,def:"The feeling that someone is beneath consideration or deserving of scorn.",ex:"She could barely conceal her contempt for his dishonest tactics."},
-  {w:"Diligent",pos:"adjective",pron:"/ˈdɪl.ɪ.dʒənt/",d:2,def:"Having or showing care and conscientiousness in one's work.",ex:"Her diligent research uncovered facts that had been buried for decades."},
-  {w:"Emulate",pos:"verb",pron:"/ˈem.jʊ.leɪt/",d:2,def:"To match or surpass, typically by imitation; to try to equal.",ex:"Young writers often emulate the authors they admire before finding their own voice."},
-  {w:"Exemplary",pos:"adjective",pron:"/ɪɡˈzem.plər.i/",d:2,def:"Serving as a desirable model; representing the best of its kind.",ex:"Her exemplary conduct earned her the respect of the entire team."},
-  {w:"Fallible",pos:"adjective",pron:"/ˈfæl.ɪ.bəl/",d:2,def:"Capable of making mistakes or being wrong.",ex:"Even the most experienced surgeons are fallible; protocols exist for that reason."},
-  {w:"Frugal",pos:"adjective",pron:"/ˈfruː.ɡəl/",d:2,def:"Sparing or economical with money or food; simple and plain.",ex:"Despite her wealth, she lived a frugal life and drove a twenty-year-old car."},
-  {w:"Hubris",pos:"noun",pron:"/ˈhjuː.brɪs/",d:2,def:"Excessive pride or self-confidence, often leading to downfall.",ex:"His hubris led him to underestimate every rival — and eventually lose everything."},
-  {w:"Impartial",pos:"adjective",pron:"/ɪmˈpɑː.ʃəl/",d:2,def:"Treating all rivals or disputants equally; fair and just.",ex:"The mediator struggled to remain impartial as both parties grew more hostile."},
-  {w:"Mitigate",pos:"verb",pron:"/ˈmɪt.ɪ.ɡeɪt/",d:2,def:"To make less severe, serious, or painful; to lessen harm.",ex:"The engineers worked to mitigate the flood risk before the rainy season."},
-  {w:"Novice",pos:"noun",pron:"/ˈnɒv.ɪs/",d:2,def:"A person new to a skill, field, or belief; a beginner.",ex:"Even as a novice, her instincts for the game were impressive."},
-  {w:"Obsolete",pos:"adjective",pron:"/ˌɒb.səˈliːt/",d:2,def:"No longer in use; superseded by something newer.",ex:"The technology was already obsolete by the time it reached the market."},
-  {w:"Paradox",pos:"noun",pron:"/ˈpær.ə.dɒks/",d:2,def:"A seemingly contradictory statement that reveals a deeper truth.",ex:"It's a paradox: the more choices we have, the less satisfied we tend to feel."},
-  {w:"Pivotal",pos:"adjective",pron:"/ˈpɪv.ɪ.təl/",d:2,def:"Of crucial importance in relation to the development of something.",ex:"That pivotal meeting changed the course of the entire negotiation."},
-  {w:"Relentless",pos:"adjective",pron:"/rɪˈlent.ləs/",d:2,def:"Unceasingly intense; never relaxing or yielding in determination.",ex:"The relentless rain had been falling for three days without pause."},
-  {w:"Scrupulous",pos:"adjective",pron:"/ˈskruː.pjʊ.ləs/",d:2,def:"Very careful about doing what is right; paying attention to every detail.",ex:"She was scrupulous about citing every source, even minor ones."},
-  {w:"Tacit",pos:"adjective",pron:"/ˈtæs.ɪt/",d:2,def:"Understood or implied without being stated directly.",ex:"There was a tacit agreement between them never to speak of that night."},
-  {w:"Tangible",pos:"adjective",pron:"/ˈtæn.dʒɪ.bəl/",d:2,def:"Perceptible by touch; clear and definite; real.",ex:"After months of work, they finally had tangible results to show the board."},
-  {w:"Ubiquitous",pos:"adjective",pron:"/juːˈbɪk.wɪ.təs/",d:2,def:"Present, appearing, or found everywhere.",ex:"Smartphones have become so ubiquitous that life without one feels impossible."},
-  {w:"Vindicate",pos:"verb",pron:"/ˈvɪn.dɪ.keɪt/",d:2,def:"To clear someone of blame or suspicion; to show something to be right.",ex:"The DNA evidence finally vindicated him after twelve years in prison."},
-  {w:"Verbose",pos:"adjective",pron:"/vɜːˈbəʊs/",d:2,def:"Using more words than needed; long-winded.",ex:"His verbose reports could have said the same in a quarter of the pages."},
-  {w:"Placid",pos:"adjective",pron:"/ˈplæs.ɪd/",d:2,def:"Not easily upset or excited; calm and peaceful.",ex:"The placid lake reflected the mountains without a ripple."},
-  {w:"Revere",pos:"verb",pron:"/rɪˈvɪər/",d:2,def:"To feel deep respect or admiration for something or someone.",ex:"The village still revered the old teacher who had served them for forty years."},
-  // HARD
-  {w:"Abjure",pos:"verb",pron:"/əbˈdʒʊər/",d:3,def:"To solemnly renounce or reject a belief, cause, or claim.",ex:"Under pressure, he abjured his earlier views — a move his colleagues never forgave."},
-  {w:"Abstruse",pos:"adjective",pron:"/æbˈstruːs/",d:3,def:"Difficult to understand; obscure and profound.",ex:"The philosopher's abstruse treatise was read only by specialists in the field."},
-  {w:"Acrimony",pos:"noun",pron:"/ˈæk.rɪ.mə.ni/",d:3,def:"Bitterness or ill feeling in speech or manner.",ex:"The divorce proceedings were marked by such acrimony that the children suffered most."},
-  {w:"Anachronism",pos:"noun",pron:"/əˈnæk.rə.nɪz.əm/",d:3,def:"A thing belonging to a period other than the one it exists in; an outdated thing.",ex:"Wearing a powdered wig in court today would be quite an anachronism."},
-  {w:"Animus",pos:"noun",pron:"/ˈæn.ɪ.məs/",d:3,def:"Hostility or ill feeling directed toward someone or something.",ex:"The committee's animus toward the proposal had little to do with its actual merits."},
-  {w:"Antithesis",pos:"noun",pron:"/ænˈtɪθ.ɪ.sɪs/",d:3,def:"A person or thing that is the direct opposite of another; contrast.",ex:"His quiet modesty was the antithesis of everything the industry rewarded."},
-  {w:"Apocryphal",pos:"adjective",pron:"/əˈpɒk.rɪ.f(ə)l/",d:3,def:"Of doubtful authenticity; widely repeated but probably untrue.",ex:"The story of his midnight swim in the Thames is almost certainly apocryphal."},
-  {w:"Apotheosis",pos:"noun",pron:"/əˌpɒθ.iˈəʊ.sɪs/",d:3,def:"The highest or most perfect development of something; elevation to divine status.",ex:"The cathedral was considered the apotheosis of Gothic architecture."},
-  {w:"Apposite",pos:"adjective",pron:"/ˈæp.ə.zɪt/",d:3,def:"Apt in the circumstances; very appropriate.",ex:"Her apposite remark put the whole debate in a new and clarifying light."},
-  {w:"Arcane",pos:"adjective",pron:"/ɑːˈkeɪn/",d:3,def:"Understood by few; mysterious and known only to the initiated.",ex:"The arcane rules of the game were passed down orally through generations."},
-  {w:"Asperity",pos:"noun",pron:"/æˈsper.ɪ.ti/",d:3,def:"Harshness of tone or manner.",ex:"She replied with unusual asperity, her patience finally exhausted."},
-  {w:"Attenuate",pos:"verb",pron:"/əˈten.jʊ.eɪt/",d:3,def:"To reduce the force or effect of something; to make thin or weak.",ex:"The thick walls attenuated the sound until it was barely a whisper."},
-  {w:"Calumny",pos:"noun",pron:"/ˈkæl.əm.ni/",d:3,def:"The making of false and defamatory statements; slander.",ex:"The campaign was undone by calumny spread by anonymous pamphlets."},
-  {w:"Capricious",pos:"adjective",pron:"/kəˈprɪʃ.əs/",d:3,def:"Given to sudden and unaccountable changes of mood or behaviour.",ex:"The capricious king made and broke alliances within the same week."},
-  {w:"Catharsis",pos:"noun",pron:"/kəˈθɑː.sɪs/",d:3,def:"The process of releasing strong emotions through art or experience.",ex:"For many, weeping at the end of the film was a powerful catharsis."},
-  {w:"Chicanery",pos:"noun",pron:"/ʃɪˈkeɪ.nər.i/",d:3,def:"The use of trickery to achieve a political, financial, or legal purpose.",ex:"The trial exposed years of corporate chicanery hidden beneath legitimate paperwork."},
-  {w:"Cogent",pos:"adjective",pron:"/ˈkəʊ.dʒənt/",d:3,def:"Clear, logical, and convincing; powerfully persuasive.",ex:"She built a cogent argument from evidence that had been hiding in plain sight."},
-  {w:"Contrite",pos:"adjective",pron:"/kənˈtraɪt/",d:3,def:"Feeling or expressing remorse or penitence; affected by guilt.",ex:"He appeared genuinely contrite, not merely performing regret for the cameras."},
-  {w:"Cupidity",pos:"noun",pron:"/kjuːˈpɪd.ɪ.ti/",d:3,def:"Greed for money or possessions; avarice.",ex:"Cupidity drove the merchants to cut corners that would later cost lives."},
-  {w:"Dearth",pos:"noun",pron:"/dɜːθ/",d:3,def:"A scarcity or lack of something.",ex:"There is no dearth of data — only a dearth of people willing to interpret it honestly."},
-  {w:"Deleterious",pos:"adjective",pron:"/ˌdel.ɪˈtɪər.i.əs/",d:3,def:"Causing harm or damage; injurious to health or well-being.",ex:"The factory's deleterious effect on the river took decades to reverse."},
-  {w:"Diatribe",pos:"noun",pron:"/ˈdaɪ.ə.traɪb/",d:3,def:"A forceful and bitter verbal attack against someone or something.",ex:"His opening statement quickly became a diatribe against the opposing counsel."},
-  {w:"Dilettante",pos:"noun",pron:"/ˌdɪl.ɪˈtænt/",d:3,def:"A person who cultivates an interest superficially; an amateur dabbler.",ex:"He fancied himself a philosopher but his peers considered him a dilettante."},
-  {w:"Dissonance",pos:"noun",pron:"/ˈdɪs.ə.nəns/",d:3,def:"A tension or clash from a lack of agreement; harsh sound.",ex:"Cognitive dissonance made it impossible for her to reconcile her actions with her beliefs."},
-  {w:"Ebullience",pos:"noun",pron:"/ɪˈbʊl.i.əns/",d:3,def:"The quality of being cheerful and full of energy; exuberance.",ex:"Her natural ebullience made every gathering feel like a celebration."},
-  {w:"Effrontery",pos:"noun",pron:"/ɪˈfrʌn.tər.i/",d:3,def:"Insolent or impertinent behaviour; audacious lack of respect.",ex:"He had the effrontery to demand an apology from the very person he had wronged."},
-  {w:"Elegy",pos:"noun",pron:"/ˈel.ɪ.dʒi/",d:3,def:"A poem or song of mourning; a mournful piece of writing.",ex:"The film functions as a quiet elegy for a way of life that no longer exists."},
-  {w:"Enervate",pos:"verb",pron:"/ˈen.ə.veɪt/",d:3,def:"To make someone feel drained of energy or vitality; to weaken.",ex:"The relentless heat enervated the soldiers long before battle began."},
-  {w:"Ephemeral",pos:"adjective",pron:"/ɪˈfem.ər.əl/",d:3,def:"Lasting for a very short time; transitory.",ex:"The ephemeral beauty of the cherry blossoms made them all the more precious."},
-  {w:"Equanimity",pos:"noun",pron:"/ˌek.wəˈnɪm.ɪ.ti/",d:3,def:"Mental calmness and composure, especially in difficult situations.",ex:"She faced the diagnosis with remarkable equanimity that inspired those around her."},
-  {w:"Equivocate",pos:"verb",pron:"/ɪˈkwɪv.ə.keɪt/",d:3,def:"To use ambiguous language to avoid committing oneself to a position.",ex:"When pressed for a direct answer, the politician began to equivocate."},
-  {w:"Erudite",pos:"adjective",pron:"/ˈer.ʊ.daɪt/",d:3,def:"Having or showing great knowledge or learning.",ex:"The erudite professor could trace the etymology of almost any word on demand."},
-  {w:"Esoteric",pos:"adjective",pron:"/ˌes.əˈter.ɪk/",d:3,def:"Intended for or understood by only a small number of people with specialised knowledge.",ex:"His esoteric interests in Sumerian numerology baffled most of his colleagues."},
-  {w:"Excoriate",pos:"verb",pron:"/ɪkˈskɔː.ri.eɪt/",d:3,def:"To censure or criticise very severely.",ex:"The review excoriated the government's handling of the crisis in withering terms."},
-  {w:"Fatuous",pos:"adjective",pron:"/ˈfætʃ.u.əs/",d:3,def:"Silly and pointless; devoid of intelligence; self-satisfied.",ex:"The committee's fatuous questions wasted hours that could have been spent on real work."},
-  {w:"Fecund",pos:"adjective",pron:"/ˈfiː.kənd/",d:3,def:"Producing or capable of producing an abundance of offspring or creative output.",ex:"The fecund writer published three novels and a collection of essays in a single year."},
-  {w:"Fractious",pos:"adjective",pron:"/ˈfræk.ʃəs/",d:3,def:"Difficult to control; tending to cause trouble; irritable.",ex:"The fractious coalition collapsed after only six months in government."},
-  {w:"Garrulous",pos:"adjective",pron:"/ˈɡær.ʊ.ləs/",d:3,def:"Excessively talkative, especially on trivial matters.",ex:"The garrulous taxi driver barely paused for breath during the entire journey."},
-  {w:"Harangue",pos:"noun/verb",pron:"/həˈræŋ/",d:3,def:"A lengthy and aggressive speech; to lecture someone at length.",ex:"The manager harangued the team for an hour before anyone could raise an objection."},
-  {w:"Hegemony",pos:"noun",pron:"/hɪˈɡem.ə.ni/",d:3,def:"Leadership or dominance, especially of one country or group over others.",ex:"The empire maintained its hegemony through trade control rather than military force."},
-  {w:"Histrionic",pos:"adjective",pron:"/ˌhɪs.triˈɒn.ɪk/",d:3,def:"Excessively theatrical or dramatic; designed to attract attention.",ex:"His histrionic reaction to a minor criticism alienated even his closest allies."},
-  {w:"Ignominious",pos:"adjective",pron:"/ˌɪɡ.nəˈmɪn.i.əs/",d:3,def:"Deserving or causing public disgrace or shame.",ex:"The team suffered an ignominious defeat after being odds-on favourites to win."},
-  {w:"Implacable",pos:"adjective",pron:"/ɪmˈplæk.ə.bəl/",d:3,def:"Unable to be appeased or pacified; relentless.",ex:"His implacable opposition to the plan wore down every supporter it once had."},
-  {w:"Impugn",pos:"verb",pron:"/ɪmˈpjuːn/",d:3,def:"To dispute the truth, validity, or integrity of something; to call into question.",ex:"He sought to impugn her character rather than address her argument directly."},
-  {w:"Inveterate",pos:"adjective",pron:"/ɪnˈvet.ər.ɪt/",d:3,def:"Having a habit or interest that is long-established and unlikely to change.",ex:"An inveterate traveller, she had visited over ninety countries by the age of fifty."},
-  {w:"Irascible",pos:"adjective",pron:"/ɪˈræs.ɪ.bəl/",d:3,def:"Having a tendency to be easily angered; irritable.",ex:"The irascible critic became infamous for storming out of performances he disliked."},
-  {w:"Lachrymose",pos:"adjective",pron:"/ˈlæk.rɪ.məʊs/",d:3,def:"Tearful; tending to cry easily; inducing sadness.",ex:"The lachrymose finale left half the audience reaching for their programmes."},
-  {w:"Laconic",pos:"adjective",pron:"/ləˈkɒn.ɪk/",d:3,def:"Using very few words; notably brief and concise.",ex:"His laconic reply — a single nod — said everything without saying a word."},
-  {w:"Lassitude",pos:"noun",pron:"/ˈlæs.ɪ.tjuːd/",d:3,def:"Physical or mental weariness; lack of energy.",ex:"A deep lassitude settled over the city in the long weeks after the crisis."},
-  {w:"Loquacious",pos:"adjective",pron:"/ləˈkweɪ.ʃəs/",d:3,def:"Tending to talk a great deal; very talkative.",ex:"The loquacious professor rarely paused long enough for students to ask questions."},
-  {w:"Magnanimous",pos:"adjective",pron:"/mæɡˈnæn.ɪ.məs/",d:3,def:"Very generous or forgiving, especially toward a rival or lesser person.",ex:"The champion was magnanimous in victory, praising his opponent at length."},
-  {w:"Mellifluous",pos:"adjective",pron:"/məˈlɪf.lu.əs/",d:3,def:"Sweet or musical; pleasant sounding.",ex:"Her mellifluous voice made even the mundane announcements sound lyrical."},
-  {w:"Mendacious",pos:"adjective",pron:"/menˈdeɪ.ʃəs/",d:3,def:"Not telling the truth; lying habitually.",ex:"The mendacious witness contradicted himself under cross-examination."},
-  {w:"Mercurial",pos:"adjective",pron:"/mɜːˈkjʊər.i.əl/",d:3,def:"Subject to sudden changes of mood; lively and unpredictable.",ex:"Her mercurial temperament made her brilliant to work with and maddening to live with."},
-  {w:"Miasma",pos:"noun",pron:"/miˈæz.mə/",d:3,def:"An unpleasant or unhealthy atmosphere; an oppressive influence.",ex:"A miasma of suspicion had settled over the office ever since the theft."},
-  {w:"Misanthrope",pos:"noun",pron:"/ˈmɪs.ən.θrəʊp/",d:3,def:"A person who dislikes and avoids other people; one who distrusts humanity.",ex:"The hermit wasn't a misanthrope by nature — he had simply been let down too many times."},
-  {w:"Mordant",pos:"adjective",pron:"/ˈmɔː.dənt/",d:3,def:"Having a sharp or critical quality; biting and sarcastic.",ex:"His mordant wit made him beloved by readers and feared by politicians."},
-  {w:"Moribund",pos:"adjective",pron:"/ˈmɒr.ɪ.bʌnd/",d:3,def:"In terminal decline; lacking vitality; at the point of death.",ex:"Critics argued the institution had become moribund and needed wholesale reform."},
-  {w:"Nefarious",pos:"adjective",pron:"/nɪˈfeər.i.əs/",d:3,def:"Wicked or criminal; flagrantly evil.",ex:"The investigation uncovered a nefarious scheme spanning two continents."},
-  {w:"Numinous",pos:"adjective",pron:"/ˈnjuː.mɪ.nəs/",d:3,def:"Having a strong spiritual quality; evoking a sense of the divine.",ex:"The cathedral at dusk had a numinous quality she could not name."},
-  {w:"Obdurate",pos:"adjective",pron:"/ˈɒb.djʊ.rɪt/",d:3,def:"Stubbornly refusing to change one's opinion or course of action.",ex:"He remained obdurate in the face of overwhelming evidence to the contrary."},
-  {w:"Obsequious",pos:"adjective",pron:"/əbˈsiː.kwi.əs/",d:3,def:"Excessively compliant or fawning; servile.",ex:"The obsequious assistant agreed with everything the director said, however absurd."},
-  {w:"Onerous",pos:"adjective",pron:"/ˈɒn.ər.əs/",d:3,def:"Involving an amount of effort and difficulty that is oppressively burdensome.",ex:"The reporting requirements had become so onerous that small firms could not comply."},
-  {w:"Palimpsest",pos:"noun",pron:"/ˈpæl.ɪmp.sest/",d:3,def:"Anything bearing visible traces of an earlier, erased form; a layered history.",ex:"The city is a palimpsest — every era is written over, but never fully erased."},
-  {w:"Panacea",pos:"noun",pron:"/ˌpæn.əˈsiː.ə/",d:3,def:"A solution or remedy for all difficulties or diseases; a cure-all.",ex:"Technology is often presented as a panacea, though most problems are more complex."},
-  {w:"Pariah",pos:"noun",pron:"/pəˈraɪ.ə/",d:3,def:"An outcast; a person rejected by society or a particular group.",ex:"After the scandal, he became a pariah in the industry he had once dominated."},
-  {w:"Paucity",pos:"noun",pron:"/ˈpɔː.sɪ.ti/",d:3,def:"The presence of something in only small or insufficient quantities; scarcity.",ex:"The paucity of reliable data made any firm conclusion impossible."},
-  {w:"Penury",pos:"noun",pron:"/ˈpen.jʊ.ri/",d:3,def:"Extreme poverty; destitution.",ex:"He had grown up in penury, which shaped his obsessive relationship with money."},
-  {w:"Perfidious",pos:"adjective",pron:"/pəˈfɪd.i.əs/",d:3,def:"Deceitful and untrustworthy; guilty of betrayal.",ex:"His perfidious allies abandoned him the moment power shifted."},
-  {w:"Perspicacious",pos:"adjective",pron:"/ˌpɜː.spɪˈkeɪ.ʃəs/",d:3,def:"Having a ready insight into things; shrewd and discerning.",ex:"Her perspicacious reading of the data revealed a pattern no one else had noticed."},
-  {w:"Petulant",pos:"adjective",pron:"/ˈpet.jʊ.lənt/",d:3,def:"Childishly sulky or bad-tempered; irritable.",ex:"His petulant refusal to attend the meeting delayed the project by two weeks."},
-  {w:"Polemic",pos:"noun",pron:"/pəˈlem.ɪk/",d:3,def:"A strong verbal or written attack on an opinion, doctrine, or person.",ex:"His latest book reads less like scholarship and more like a sustained polemic."},
-  {w:"Predilection",pos:"noun",pron:"/ˌpred.ɪˈlek.ʃən/",d:3,def:"A preference or special liking for something; a bias in favour.",ex:"He had a predilection for long walks in poor weather that baffled his friends."},
-  {w:"Prevaricate",pos:"verb",pron:"/prɪˈvær.ɪ.keɪt/",d:3,def:"To speak or act in an evasive way; to avoid giving a direct answer.",ex:"Stop prevaricating — tell me directly whether or not you intend to leave."},
-  {w:"Probity",pos:"noun",pron:"/ˈprəʊ.bɪ.ti/",d:3,def:"The quality of having strong moral principles; complete honesty and integrity.",ex:"His probity in financial matters was so well-known that clients never asked for receipts."},
-  {w:"Propitious",pos:"adjective",pron:"/prəˈpɪʃ.əs/",d:3,def:"Giving or indicating a good chance of success; favourable.",ex:"The clear skies and calm seas seemed propitious for the crossing."},
-  {w:"Pugnacious",pos:"adjective",pron:"/pʌɡˈneɪ.ʃəs/",d:3,def:"Eager or quick to argue, quarrel, or fight; combative.",ex:"The pugnacious columnist seemed to thrive on public controversy."},
-  {w:"Querulous",pos:"adjective",pron:"/ˈkwer.ʊ.ləs/",d:3,def:"Complaining in a petulant or whining manner.",ex:"The querulous passenger complained throughout the entire six-hour flight."},
-  {w:"Recalcitrant",pos:"adjective",pron:"/rɪˈkæl.sɪ.trənt/",d:3,def:"Having an obstinately uncooperative attitude; resisting authority.",ex:"The recalcitrant witness refused to answer twenty of the twenty-six questions."},
-  {w:"Recondite",pos:"adjective",pron:"/ˈrek.ən.daɪt/",d:3,def:"Little known; concerning obscure subject matter.",ex:"The footnotes were full of recondite references that even specialists found obscure."},
-  {w:"Redolent",pos:"adjective",pron:"/ˈred.ə.lənt/",d:3,def:"Strongly reminiscent or suggestive of; fragrant.",ex:"The old kitchen was redolent of cinnamon and wood smoke."},
-  {w:"Reticent",pos:"adjective",pron:"/ˈret.ɪ.sənt/",d:3,def:"Not revealing one's thoughts or feelings readily; reserved.",ex:"He was reticent about his past, offering only the broadest outlines when pressed."},
-  {w:"Sanguine",pos:"adjective",pron:"/ˈsæŋ.ɡwɪn/",d:3,def:"Optimistic, especially in a difficult situation.",ex:"Despite the setbacks, she remained sanguine about the project's chances."},
-  {w:"Sardonic",pos:"adjective",pron:"/sɑːˈdɒn.ɪk/",d:3,def:"Grimly mocking or cynical; disdainfully humorous.",ex:"Her sardonic humour kept the team from taking themselves too seriously."},
-  {w:"Solecism",pos:"noun",pron:"/ˈsɒl.ɪ.sɪz.əm/",d:3,def:"A grammatical mistake; a breach of good manners or etiquette.",ex:"Using 'whom' where 'who' is correct is a common solecism in formal writing."},
-  {w:"Solipsism",pos:"noun",pron:"/ˈsɒl.ɪp.sɪ.z(ə)m/",d:3,def:"The view that the self is the only thing that can be known to exist.",ex:"His solipsism made genuine empathy almost impossible for him to achieve."},
-  {w:"Soporific",pos:"adjective",pron:"/ˌsɒp.əˈrɪf.ɪk/",d:3,def:"Tending to induce sleep; drowsily dull.",ex:"The soporific lecture had half the audience nodding off within twenty minutes."},
-  {w:"Sophistry",pos:"noun",pron:"/ˈsɒf.ɪ.stri/",d:3,def:"The use of clever but false arguments to deceive; specious reasoning.",ex:"The proposal was wrapped in such sophistry that most listeners believed it to be sound."},
-  {w:"Sycophant",pos:"noun",pron:"/ˈsɪk.ə.fænt/",d:3,def:"A person who acts obsequiously toward someone in order to gain advantage.",ex:"He surrounded himself with sycophants who never challenged his worst instincts."},
-  {w:"Tendentious",pos:"adjective",pron:"/tenˈden.ʃəs/",d:3,def:"Promoting a particular cause or point of view; having an underlying purpose.",ex:"The documentary was widely criticised as tendentious and selective with its evidence."},
-  {w:"Trepidation",pos:"noun",pron:"/ˌtrep.ɪˈdeɪ.ʃən/",d:3,def:"A feeling of fear or anxiety about something that may happen.",ex:"He opened the envelope with considerable trepidation."},
-  {w:"Truculent",pos:"adjective",pron:"/ˈtrʌk.jʊ.lənt/",d:3,def:"Eager or quick to argue or fight; aggressively defiant.",ex:"The truculent debater challenged every point, however minor."},
-  {w:"Umbrage",pos:"noun",pron:"/ˈʌm.brɪdʒ/",d:3,def:"Offence or annoyance; shade given by trees.",ex:"She took umbrage at the suggestion that her work needed improvement."},
-  {w:"Unctuous",pos:"adjective",pron:"/ˈʌŋk.tʃu.əs/",d:3,def:"Excessively flattering or ingratiating; having a greasy quality.",ex:"His unctuous manner fooled no one; they all saw the calculation behind the charm."},
-  {w:"Vacillate",pos:"verb",pron:"/ˈvæs.ɪ.leɪt/",d:3,def:"To waver between different opinions or actions; to be indecisive.",ex:"She continued to vacillate long after a decision was needed."},
-  {w:"Venal",pos:"adjective",pron:"/ˈviː.nəl/",d:3,def:"Showing or motivated by susceptibility to bribery; corruptible.",ex:"The venal official accepted payments in exchange for permits he had no right to issue."},
-  {w:"Verisimilitude",pos:"noun",pron:"/ˌver.ɪ.sɪˈmɪl.ɪ.tjuːd/",d:3,def:"The appearance of being true or real; believability in a work of fiction.",ex:"The novel's period detail lent it a verisimilitude that made it feel more history than fiction."},
-  {w:"Vociferous",pos:"adjective",pron:"/vəˈsɪf.ər.əs/",d:3,def:"Expressing or characterised by vehement opinions; loud and forceful.",ex:"Vociferous opposition from local residents halted the planning application."},
-  {w:"Wanton",pos:"adjective",pron:"/ˈwɒn.tən/",d:3,def:"Deliberate and unprovoked; having no justification; casual and unrestrained.",ex:"The wanton destruction of the library was condemned across every political line."},
-  {w:"Zeitgeist",pos:"noun",pron:"/ˈzaɪt.ɡaɪst/",d:3,def:"The defining spirit or mood of a particular period in history.",ex:"The album captured the zeitgeist of the late seventies in a way few records have."},
-  {w:"Zenith",pos:"noun",pron:"/ˈzen.ɪθ/",d:3,def:"The time at which something is most powerful or successful; the point directly above.",ex:"The empire was at its zenith in the mid-eighteenth century."},
-  {w:"Machiavellian",pos:"adjective",pron:"/ˌmæk.i.əˈvel.i.ən/",d:3,def:"Cunning, scheming, and unscrupulous, especially in politics.",ex:"The Machiavellian minister played rivals off against each other for years."},
-  {w:"Denouement",pos:"noun",pron:"/deɪˈnuː.mɒ̃/",d:3,def:"The final resolution of a narrative in which strands are drawn together.",ex:"The novel's denouement left readers wondering whether justice had truly been served."},
-  {w:"Nihilism",pos:"noun",pron:"/ˈnaɪ.ɪ.lɪz.əm/",d:3,def:"The rejection of all religious or moral principles; the belief that life is meaningless.",ex:"After the war, a generation turned to nihilism, unable to find meaning in what they had seen."},
-];
+const CIRCUMFERENCE = 2 * Math.PI * 96;
 
-const SESSION_SIZE = 12;
-let deck=[], idx=0, knew=0, again=0, flipped=false, diff='medium';
+const state = {
+  workDur:  25 * 60,
+  breakDur:  5 * 60,
+  remaining: 25 * 60,
+  total:     25 * 60,
+  running:   false,
+  isBreak:   false,
+  session:   1,
+  interval:  null,
+};
 
-function getDiffWords(d) {
-  if (d==='all') return DICT;
-  const map = {easy:1,medium:2,hard:3};
-  return DICT.filter(w=>w.d===map[d]);
+const clockEl   = document.getElementById('clock');
+const statusEl  = document.getElementById('status');
+const progEl    = document.getElementById('progCircle');
+const flashEl   = document.getElementById('flash');
+
+progEl.style.strokeDasharray  = CIRCUMFERENCE;
+progEl.style.strokeDashoffset = 0;
+
+function fmt(s) {
+  const m = Math.floor(s / 60).toString().padStart(2, '0');
+  const sec = (s % 60).toString().padStart(2, '0');
+  return `${m}:${sec}`;
 }
 
-function shuffle(a) {
-  for (let i=a.length-1;i>0;i--){const j=0|Math.random()*(i+1);[a[i],a[j]]=[a[j],a[i]];}
-  return a;
+function render() {
+  clockEl.textContent = fmt(state.remaining);
+
+  const pct = state.remaining / state.total;
+  progEl.style.strokeDashoffset = CIRCUMFERENCE * pct;
+
+  const mode = state.isBreak ? 'break' : 'work';
+  statusEl.textContent = `${mode} · #${state.session}`;
+
+  clockEl.classList.toggle('paused',     !state.running);
+  clockEl.classList.toggle('break-mode', state.isBreak);
+  progEl.classList.toggle('break-mode',  state.isBreak);
 }
 
-function setDiff(d) {
-  diff = d;
-  document.querySelectorAll('.diff-btn').forEach(b=>{
-    b.classList.toggle('active', b.classList.contains(d));
-  });
-  const badge = document.getElementById('diffBadge');
-  badge.className = 'diff-badge '+d;
-  badge.textContent = d.charAt(0).toUpperCase()+d.slice(1);
-  restartSession();
-}
-
-function initSession() {
-  const pool = getDiffWords(diff);
-  deck = shuffle([...pool]).slice(0, Math.min(SESSION_SIZE, pool.length));
-  idx=0; knew=0; again=0; flipped=false;
-  document.getElementById('card').classList.remove('flipped');
-  document.getElementById('completeScreen').classList.remove('visible');
-  document.getElementById('cardWrap').style.display='';
-  document.getElementById('controls').style.display='';
-  loadCard();
-  updateStats();
-}
-
-function loadCard() {
-  if (idx>=deck.length){showComplete();return;}
-  const w=deck[idx];
-  document.getElementById('wordPos').textContent  = w.pos;
-  document.getElementById('wordMain').textContent = w.w;
-  document.getElementById('wordPron').textContent = w.pron;
-  document.getElementById('defText').textContent  = w.def;
-  document.getElementById('exText').textContent   = w.ex;
-  document.getElementById('progressPill').textContent = `${idx+1} / ${deck.length}`;
-  flipped=false;
-  document.getElementById('card').classList.remove('flipped');
-  document.getElementById('btnKnow').disabled  = true;
-  document.getElementById('btnAgain').disabled = true;
-}
-
-function flipCard() {
-  if (idx>=deck.length) return;
-  flipped=!flipped;
-  document.getElementById('card').classList.toggle('flipped',flipped);
-  document.getElementById('btnKnow').disabled  = !flipped;
-  document.getElementById('btnAgain').disabled = !flipped;
-}
-
-function markCard(k) {
-  if (!flipped) return;
-  k ? knew++ : again++;
-  idx++;
-  updateStats();
-  setTimeout(loadCard, 150);
-}
-
-function updateStats() {
-  document.getElementById('knewStat').textContent  = knew;
-  document.getElementById('againStat').textContent = again;
-  document.getElementById('progressBar').style.width = `${(idx/deck.length)*100}%`;
-  if (idx<deck.length) document.getElementById('progressPill').textContent = `${idx+1} / ${deck.length}`;
-}
-
-function showComplete() {
-  document.getElementById('cardWrap').style.display  = 'none';
-  document.getElementById('controls').style.display  = 'none';
-  document.getElementById('completeScreen').classList.add('visible');
-  document.getElementById('cKnew').textContent  = knew;
-  document.getElementById('cLearn').textContent = again;
-  document.getElementById('cTotal').textContent = deck.length;
-  document.getElementById('progressBar').style.width = '100%';
-  const pct = deck.length ? Math.round((knew/deck.length)*100) : 0;
-  document.getElementById('completeSub').textContent =
-    pct>=80 ? 'Excellent recall — '+pct+'% known' :
-    pct>=50 ? 'Good progress — '+pct+'% known' :
-               'Keep practising — '+pct+'% known';
-  // streak
-  const today = new Date().toDateString();
-  const save  = JSON.parse(localStorage.getItem('lexicon3')||'{}');
-  if (save.lastDate!==today) {
-    const yest=new Date(); yest.setDate(yest.getDate()-1);
-    const s = save.lastDate===yest.toDateString() ? (save.streak||0)+1 : 1;
-    localStorage.setItem('lexicon3',JSON.stringify({lastDate:today,streak:s}));
-    document.getElementById('streakDisplay').textContent = s+' day streak';
+function tick() {
+  if (state.remaining <= 0) {
+    endSession();
+    return;
   }
+  state.remaining--;
+  render();
 }
 
-function restartSession(){initSession();}
+function endSession() {
+  clearInterval(state.interval);
+  state.running = false;
 
-// ── Boot ─────────────────────────────────────────────
-const now=new Date();
-document.getElementById('dateDisplay').textContent =
-  now.toLocaleDateString('en-GB',{weekday:'long',month:'long',day:'numeric'}).toUpperCase();
+  flashEl.classList.remove('go');
+  void flashEl.offsetWidth;
+  flashEl.classList.add('go');
 
-const sv=JSON.parse(localStorage.getItem('lexicon3')||'{}');
-document.getElementById('streakDisplay').textContent=(sv.streak||0)+' day streak';
+  if (!state.isBreak) {
+    // switch to break
+    state.isBreak  = true;
+    state.total    = state.breakDur;
+    state.remaining= state.breakDur;
+  } else {
+    // switch to work
+    state.isBreak  = false;
+    state.session++;
+    state.total    = state.workDur;
+    state.remaining= state.workDur;
+  }
+  render();
+  // auto-start next
+  startTimer();
+}
 
-document.getElementById('cardWrap').addEventListener('click',flipCard);
-document.addEventListener('keydown',e=>{
-  if (e.code==='Space'){e.preventDefault();flipCard();}
-  if (e.code==='ArrowRight'&&flipped) markCard(true);
-  if (e.code==='ArrowLeft' &&flipped) markCard(false);
+function startTimer() {
+  if (state.running) return;
+  state.running = true;
+  state.interval = setInterval(tick, 1000);
+  render();
+}
+
+function pauseTimer() {
+  if (!state.running) return;
+  clearInterval(state.interval);
+  state.running = false;
+  render();
+}
+
+function toggleTimer() {
+  state.running ? pauseTimer() : startTimer();
+}
+
+function resetTimer() {
+  clearInterval(state.interval);
+  state.running   = false;
+  state.isBreak   = false;
+  state.remaining = state.workDur;
+  state.total     = state.workDur;
+  render();
+}
+
+function toggleBreak() {
+  clearInterval(state.interval);
+  state.running = false;
+  state.isBreak = !state.isBreak;
+  state.total     = state.isBreak ? state.breakDur : state.workDur;
+  state.remaining = state.total;
+  render();
+}
+
+function adjustWork(delta) {
+  if (state.running) return;
+  state.workDur = Math.max(60, Math.min(60*60, state.workDur + delta * 60));
+  if (!state.isBreak) {
+    state.total = state.workDur;
+    state.remaining = state.workDur;
+  }
+  render();
+}
+
+document.addEventListener('keydown', e => {
+  switch (e.key) {
+    case ' ':
+      e.preventDefault();
+      toggleTimer();
+      break;
+    case 'r': case 'R':
+      resetTimer();
+      break;
+    case 'b': case 'B':
+      toggleBreak();
+      break;
+    case '[':
+      adjustWork(-1);
+      break;
+    case ']':
+      adjustWork(+1);
+      break;
+  }
 });
 
-initSession();
+render();
 </script>
 </body>
 </html>
